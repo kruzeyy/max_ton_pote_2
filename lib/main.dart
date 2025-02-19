@@ -410,7 +410,8 @@ class _MapScreenState extends State<MapScreen> {
         ),
         onMapCreated: (mapbox.MapboxMap mapboxMap) async {
           _mapboxMap = mapboxMap; // ✅ Stocker la référence de la carte
-          _annotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+          _annotationManager =
+          await mapboxMap.annotations.createPointAnnotationManager();
           _addUserLocationMarker(_currentPosition!);
 
           // ✅ Active le suivi de localisation avec un effet de pulsation en bleu
@@ -422,7 +423,27 @@ class _MapScreenState extends State<MapScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _centerToUserLocation, // 🔥 Revenir sur la position de l'utilisateur
+        onPressed: () {
+          if (_currentPosition != null && _mapboxMap != null) {
+            // 🔥 Animation fluide vers la position actuelle
+            _mapboxMap.easeTo(
+              mapbox.CameraOptions(
+                center: mapbox.Point(
+                  coordinates: mapbox.Position(
+                    _currentPosition!.longitude,
+                    _currentPosition!.latitude,
+                  ),
+                ),
+                zoom: 17.0, // ✅ Zoom légèrement plus proche pour un meilleur effet
+                bearing: Random().nextDouble() * 360, // ✅ Ajoute une légère rotation aléatoire
+                pitch: 30, // ✅ Incline la vue pour un effet plus immersif
+              ),
+              mapbox.MapAnimationOptions(
+                duration: 1500, // ✅ Durée de l'animation en millisecondes
+              ),
+            );
+          }
+        },
         backgroundColor: Colors.red,
         child: const Icon(Icons.my_location, color: Colors.white),
       ),
