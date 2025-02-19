@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'dart:math';
 import 'package:random_name_generator/random_name_generator.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load();
+  MapboxOptions.setAccessToken(dotenv.get('TOKEN_MAP'));
   runApp(const MyApp());
 }
 
@@ -254,16 +259,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Initialisation des pages après avoir obtenu les données
+    // Ajout de la page MapScreen dans la liste des pages
     _pages.clear();
     _pages.addAll([
       UserList(users: users, toggleFavorite: _toggleFavorite, favorites: _favorites),
       ProfileScreen(username: _username, age: _age, description: _description, onProfileChanged: _updateProfile),
       FavoritesScreen(favorites: _favorites, toggleFavorite: _toggleFavorite),
+      MapScreen(),
     ]);
 
     return Scaffold(
-      body: IndexedStack( // ✅ Empêche la recréation des écrans à chaque changement d'onglet
+      body: IndexedStack(
         index: _selectedIndex,
         children: _pages,
       ),
@@ -274,18 +280,51 @@ class _HomeScreenState extends State<HomeScreen> {
         height: 60,
         animationDuration: const Duration(milliseconds: 300),
         animationCurve: Curves.easeInOut,
-        index: _selectedIndex, // ✅ Assure que l'index est bien suivi
+        index: _selectedIndex,
         items: const [
           Icon(Icons.people, size: 30, color: Colors.white),
           Icon(Icons.person, size: 30, color: Colors.white),
-          Icon(Icons.favorite, size: 30, color: Colors.white), // ❤️ Onglet Favoris
+          Icon(Icons.favorite, size: 30, color: Colors.white),
+          Icon(Icons.map, size: 30, color: Colors.white), // 📍 Icône de la carte
         ],
         onTap: (index) {
           setState(() {
-            _selectedIndex = index; // ✅ Met à jour l'onglet sélectionné
+            _selectedIndex = index;
           });
         },
       ),
+    );
+  }
+}
+
+class MapScreen extends StatelessWidget {
+  const MapScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // ✅ Définition des options de la caméra
+    CameraOptions camera = CameraOptions(
+      center: Point(
+        coordinates: Position(-98.0, 39.5), // ✅ Position correcte
+      ),
+      zoom: 3.0,
+      bearing: 0,
+      pitch: 0,
+    );
+
+    // ✅ Création du widget Mapbox
+    MapWidget mapWidget = MapWidget(
+      key: const ValueKey("mapWidget"),
+      cameraOptions: camera,
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Carte"),
+        backgroundColor: Colors.red,
+        centerTitle: true,
+      ),
+      body: mapWidget, // ✅ Affichage de la carte
     );
   }
 }
