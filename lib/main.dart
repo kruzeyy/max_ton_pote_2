@@ -155,93 +155,117 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
+List<Map<String, dynamic>> generateUsers() {
+  final random = Random();
+  final randomNames = RandomNames(Zone.us);
+
+  return List.generate(20, (index) {
+    return {
+      'name': randomNames.fullName(),
+      'age': random.nextInt(30) + 18, // Âge entre 18 et 47 ans
+      'distance': random.nextDouble() * 50, // Distance entre 0 et 50 km
+      'description': "Utilisateur sympathique qui aime discuter.",
+      'imageURL': "https://picsum.photos/200?random=$index", // Image aléatoire
+    };
+  });
+}
 
 class _HomeScreenState extends State<HomeScreen> {
   late List<Map<String, dynamic>> users;
+  List<Map<String, dynamic>> _favorites = []; // 🏆 Liste des favoris
   int _selectedIndex = 0;
   String _username = "";
   int _age = 18;
   String _description = "";
 
-  @override
-  void initState() {
-    List<Map<String, dynamic>> generateUsers() {
-      const int imageLimit = 10;
-      final randomNames = RandomNames();
-      final random = Random();
-
-      String generateDescription(String name, int age) {
-        List<String> activities = [
-          "passionné de voyages",
-          "développeur Flutter",
-          "amateur de cuisine",
-          "fan de football",
-          "adepte du yoga",
-          "collectionneur de livres anciens",
-          "explorateur urbain",
-          "joueur d'échecs",
-          "photographe en herbe",
-          "musicien autodidacte"
-        ];
-        return "$name, $age ans, est ${activities[(name.length) % activities.length]} et aime découvrir de nouvelles expériences.";
-      }
-
-      return List.generate(50, (index) {
-        String name = randomNames.fullName();
-        int age = random.nextInt(43) + 18;
-        double distance = random.nextDouble() * 99 + 1;
-
-        return {
-          'name': name,
-          'age': age,
-          'imageURL': 'https://picsum.photos/200/300?random=${(index % imageLimit) + 1}',
-          'description': generateDescription(name, age),
-          'distance': distance,
-        };
-      })..sort((a, b) => a['distance'].compareTo(b['distance']));
-    }
-    super.initState();
-    users = generateUsers();
-    _loadProfile(); // Charger les infos enregistrées
-  }
-
-  /// ✅ Charge les infos sauvegardées dans `SharedPreferences`
+  /// ✅ Charger les informations du profil depuis SharedPreferences
   Future<void> _loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _username = prefs.getString('username') ?? "";
+      _username = prefs.getString('username') ?? "Utilisateur inconnu";
       _age = prefs.getInt('age') ?? 18;
-      _description = prefs.getString('description') ?? "";
+      _description = prefs.getString('description') ?? "Aucune description disponible.";
     });
   }
 
-  /// ✅ Sauvegarde les infos du profil dans `SharedPreferences`
-  Future<void> _saveProfile(String username, int age, String description) async {
+  @override
+  void initState() {
+    super.initState();
+    users = generateUsers();
+    _loadProfile();
+    _loadFavorites(); // 🔥 Charger les favoris
+  }
+
+  /// ✅ Charger les favoris depuis `SharedPreferences`
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? favs = prefs.getStringList('favorites');
+
+    if (favs != null) {
+      setState(() {
+        _favorites = favs
+            .map((e) => users.firstWhere(
+              (user) => user['name'] == e,
+          orElse: () => <String, dynamic>{}, // ✅ Retourne un Map vide au lieu de {}
+        ))
+            .where((user) => user.isNotEmpty) // ✅ Filtrer les valeurs vides
+            .toList();
+      });
+    }
+  }
+
+  /// ✅ Sauvegarder les favoris
+  Future<void> _saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      'favorites',
+      _favorites.map((e) => e['name'] as String).toList(),
+    );
+  }
+
+  /// ✅ Met à jour et sauvegarde le profil
+  void _updateProfile(String username, int age, String description) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('username', username);
     await prefs.setInt('age', age);
     await prefs.setString('description', description);
-  }
 
-  void _updateProfile(String username, int age, String description) {
     setState(() {
       _username = username;
       _age = age;
       _description = description;
     });
-    _saveProfile(username, age, description); // Sauvegarde après modification
   }
+
+  /// ✅ Ajouter ou retirer des favoris
+  void _toggleFavorite(Map<String, dynamic> user) {
+    setState(() {
+      if (_favorites.contains(user)) {
+        _favorites.remove(user);
+      } else {
+        _favorites.add(user);
+      }
+      _saveFavorites();
+    });
+  }
+
+  /// ✅ Liste des pages à afficher
+  final List<Widget> _pages = [];
 
   @override
   Widget build(BuildContext context) {
+    // Initialisation des pages après avoir obtenu les données
+    _pages.clear();
+    _pages.addAll([
+      UserList(users: users, toggleFavorite: _toggleFavorite, favorites: _favorites),
+      ProfileScreen(username: _username, age: _age, description: _description, onProfileChanged: _updateProfile),
+      FavoritesScreen(favorites: _favorites, toggleFavorite: _toggleFavorite),
+    ]);
+
     return Scaffold(
-      body: _selectedIndex == 0
-          ? UserList(users: users)
-          : ProfileScreen(
-        username: _username,
-        age: _age,
-        description: _description,
-        onProfileChanged: _updateProfile,
+      body: IndexedStack( // ✅ Empêche la recréation des écrans à chaque changement d'onglet
+        index: _selectedIndex,
+        children: _pages,
       ),
       bottomNavigationBar: CurvedNavigationBar(
         backgroundColor: Colors.white,
@@ -250,14 +274,15 @@ class _HomeScreenState extends State<HomeScreen> {
         height: 60,
         animationDuration: const Duration(milliseconds: 300),
         animationCurve: Curves.easeInOut,
-        index: _selectedIndex,
+        index: _selectedIndex, // ✅ Assure que l'index est bien suivi
         items: const [
           Icon(Icons.people, size: 30, color: Colors.white),
           Icon(Icons.person, size: 30, color: Colors.white),
+          Icon(Icons.favorite, size: 30, color: Colors.white), // ❤️ Onglet Favoris
         ],
         onTap: (index) {
           setState(() {
-            _selectedIndex = index;
+            _selectedIndex = index; // ✅ Met à jour l'onglet sélectionné
           });
         },
       ),
@@ -265,11 +290,43 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// ✅ Classe `UserList` avec affichage de la description en modal
+class FavoritesScreen extends StatelessWidget {
+  final List<Map<String, dynamic>> favorites;
+  final Function(Map<String, dynamic>) toggleFavorite;
+
+  const FavoritesScreen({super.key, required this.favorites, required this.toggleFavorite});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Favoris"), centerTitle: true, backgroundColor: Colors.red),
+      body: favorites.isEmpty
+          ? const Center(child: Text("Aucun favori ajouté.", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)))
+          : ListView.builder(
+        itemCount: favorites.length,
+        itemBuilder: (context, index) {
+          final user = favorites[index];
+          return ListTile(
+            leading: CircleAvatar(backgroundImage: NetworkImage(user['imageURL'])),
+            title: Text(user['name'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            subtitle: Text("${user['age']} ans • ${user['distance'].toStringAsFixed(1)} km"),
+            trailing: IconButton(
+              icon: const Icon(Icons.favorite, color: Colors.red),
+              onPressed: () => toggleFavorite(user), // ❌ Retirer des favoris
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class UserList extends StatefulWidget {
   final List<Map<String, dynamic>> users;
+  final Function(Map<String, dynamic>) toggleFavorite;
+  final List<Map<String, dynamic>> favorites;
 
-  const UserList({super.key, required this.users});
+  const UserList({super.key, required this.users, required this.toggleFavorite, required this.favorites});
 
   @override
   _UserListState createState() => _UserListState();
@@ -296,39 +353,31 @@ class _UserListState extends State<UserList> {
   void _showUserDetails(BuildContext context, Map<String, dynamic> user) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircleAvatar(
-                radius: 50,
-                backgroundImage: NetworkImage(user['imageURL']),
-              ),
+              CircleAvatar(radius: 50, backgroundImage: NetworkImage(user['imageURL'])),
               const SizedBox(height: 10),
-              Text(
-                user['name'],
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
+              Text(user['name'], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 5),
-              Text(
-                "${user['age']} ans",
-                style: const TextStyle(fontSize: 18, color: Colors.grey),
-              ),
+              Text("${user['age']} ans", style: const TextStyle(fontSize: 18, color: Colors.grey)),
               const SizedBox(height: 15),
-              Text(
-                user['description'],
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
-              ),
+              Text(user['description'], textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
               const SizedBox(height: 20),
-              Text(
-                "Distance : ${user['distance'].toStringAsFixed(1)} km",
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text("Distance : ${user['distance'].toStringAsFixed(1)} km", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                icon: Icon(widget.favorites.contains(user) ? Icons.favorite : Icons.favorite_border, color: Colors.white),
+                label: Text(widget.favorites.contains(user) ? "Retirer des favoris" : "Ajouter aux favoris"),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () {
+                  widget.toggleFavorite(user);
+                  Navigator.pop(context); // Fermer le modal après l'action
+                },
               ),
             ],
           ),
@@ -340,11 +389,7 @@ class _UserListState extends State<UserList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Max ton pote"),
-        centerTitle: true,
-        backgroundColor: Colors.red,
-      ),
+      appBar: AppBar(title: const Text("Max ton pote"), centerTitle: true, backgroundColor: Colors.red),
       body: Column(
         children: [
           Padding(
@@ -354,9 +399,7 @@ class _UserListState extends State<UserList> {
               decoration: InputDecoration(
                 labelText: "Rechercher un utilisateur",
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onChanged: _filterUsers,
             ),
@@ -365,20 +408,15 @@ class _UserListState extends State<UserList> {
             child: ListView.builder(
               itemCount: _filteredUsers.length,
               itemBuilder: (context, index) {
+                final user = _filteredUsers[index];
                 return ListTile(
-                  leading: CircleAvatar(
-                    radius: 25,
-                    backgroundImage: NetworkImage(_filteredUsers[index]['imageURL']!),
+                  leading: CircleAvatar(backgroundImage: NetworkImage(user['imageURL'])),
+                  title: Text(user['name'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  trailing: IconButton(
+                    icon: Icon(widget.favorites.contains(user) ? Icons.favorite : Icons.favorite_border, color: Colors.red),
+                    onPressed: () => widget.toggleFavorite(user),
                   ),
-                  title: Text(
-                    _filteredUsers[index]['name']!,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  trailing: Text(
-                    "${_filteredUsers[index]['distance'].toStringAsFixed(1)} km",
-                    style: const TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                  onTap: () => _showUserDetails(context, _filteredUsers[index]),
+                  onTap: () => _showUserDetails(context, user),
                 );
               },
             ),
