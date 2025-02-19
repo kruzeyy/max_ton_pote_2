@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart' as geo;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'dart:math';
 import 'package:random_name_generator/random_name_generator.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
@@ -9,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
-  MapboxOptions.setAccessToken(dotenv.get('TOKEN_MAP'));
+  mapbox.MapboxOptions.setAccessToken(dotenv.get('TOKEN_MAP'));
   runApp(const MyApp());
 }
 
@@ -297,34 +298,134 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class MapScreen extends StatelessWidget {
+class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // ✅ Définition des options de la caméra
-    CameraOptions camera = CameraOptions(
-      center: Point(
-        coordinates: Position(-98.0, 39.5), // ✅ Position correcte
+  _MapScreenState createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  geo.Position? _currentPosition;
+  late mapbox.MapWidget _mapWidget;
+  late mapbox.PointAnnotationManager _annotationManager;
+  late mapbox.MapboxMap _mapboxMap; // ✅ Stocker la référence de la carte
+
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation();
+  }
+
+  /// ✅ Récupère la position actuelle de l'utilisateur
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    geo.LocationPermission permission;
+
+    serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      print("Service de localisation désactivé");
+      return;
+    }
+
+    permission = await geo.Geolocator.checkPermission();
+    if (permission == geo.LocationPermission.denied) {
+      permission = await geo.Geolocator.requestPermission();
+      if (permission == geo.LocationPermission.denied) {
+        print("Permission refusée");
+        return;
+      }
+    }
+
+    if (permission == geo.LocationPermission.deniedForever) {
+      print("Permission refusée définitivement");
+      return;
+    }
+
+    geo.Position position = await geo.Geolocator.getCurrentPosition(
+        desiredAccuracy: geo.LocationAccuracy.high);
+
+    setState(() {
+      _currentPosition = position;
+    });
+
+    _addUserLocationMarker(position); // 🔥 Ajoute un marqueur à la position actuelle
+  }
+
+  /// ✅ Ajoute un marqueur sur la position actuelle de l'utilisateur
+  Future<void> _addUserLocationMarker(geo.Position position) async {
+    if (_annotationManager == null) return;
+
+    await _annotationManager.create(
+      mapbox.PointAnnotationOptions(
+        geometry: mapbox.Point(
+          coordinates: mapbox.Position(
+            position.longitude,
+            position.latitude,
+          ),
+        ),
       ),
-      zoom: 3.0,
-      bearing: 0,
-      pitch: 0,
     );
+  }
 
-    // ✅ Création du widget Mapbox
-    MapWidget mapWidget = MapWidget(
-      key: const ValueKey("mapWidget"),
-      cameraOptions: camera,
-    );
+  /// ✅ Centre la carte sur la position actuelle
+  void _centerToUserLocation() {
+    if (_currentPosition != null && _mapboxMap != null) {
+      _mapboxMap.setCamera(mapbox.CameraOptions(
+        center: mapbox.Point(
+          coordinates: mapbox.Position(
+            _currentPosition!.longitude,
+            _currentPosition!.latitude,
+          ),
+        ),
+        zoom: 15.0,
+        bearing: 0,
+        pitch: 0,
+      ));
+    }
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Carte"),
         backgroundColor: Colors.red,
         centerTitle: true,
       ),
-      body: mapWidget, // ✅ Affichage de la carte
+      body: _currentPosition == null
+          ? const Center(child: CircularProgressIndicator())
+          : mapbox.MapWidget(
+        key: const ValueKey("mapWidget"),
+        cameraOptions: mapbox.CameraOptions(
+          center: mapbox.Point(
+            coordinates: mapbox.Position(
+              _currentPosition!.longitude,
+              _currentPosition!.latitude,
+            ),
+          ),
+          zoom: 15.0,
+          bearing: 0,
+          pitch: 0,
+        ),
+        onMapCreated: (mapbox.MapboxMap mapboxMap) async {
+          _mapboxMap = mapboxMap; // ✅ Stocker la référence de la carte
+          _annotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+          _addUserLocationMarker(_currentPosition!);
+
+          // ✅ Active le suivi de localisation avec un effet de pulsation en bleu
+          mapboxMap.location.updateSettings(mapbox.LocationComponentSettings(
+            enabled: true,
+            pulsingEnabled: true,
+            pulsingColor: Colors.blue.value,
+          ));
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _centerToUserLocation, // 🔥 Revenir sur la position de l'utilisateur
+        backgroundColor: Colors.red,
+        child: const Icon(Icons.my_location, color: Colors.white),
+      ),
     );
   }
 }
