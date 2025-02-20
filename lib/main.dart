@@ -6,6 +6,60 @@ import 'dart:math';
 import 'package:random_name_generator/random_name_generator.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'main.dart';
+
+final Map<String, Map<String, double>> cityCoordinates = {
+  "Lyon": {"lat": 45.764, "lng": 4.8357},
+  "Paris": {"lat": 48.8566, "lng": 2.3522},
+  "Marseille": {"lat": 43.2965, "lng": 5.3698},
+  "Toulouse": {"lat": 43.6047, "lng": 1.4442},
+  "Bordeaux": {"lat": 44.8378, "lng": -0.5792},
+  "Nice": {"lat": 43.7102, "lng": 7.262},
+  "Nantes": {"lat": 47.2184, "lng": -1.5536},
+  "Strasbourg": {"lat": 48.5734, "lng": 7.7521},
+};
+
+Future<geo.Position?> getUserLocation() async {
+  bool serviceEnabled;
+  geo.LocationPermission permission;
+
+  serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    print("Service de localisation désactivé");
+    return null;
+  }
+
+  permission = await geo.Geolocator.checkPermission();
+  if (permission == geo.LocationPermission.denied) {
+    permission = await geo.Geolocator.requestPermission();
+    if (permission == geo.LocationPermission.denied) {
+      print("Permission refusée");
+      return null;
+    }
+  }
+
+  if (permission == geo.LocationPermission.deniedForever) {
+    print("Permission refusée définitivement");
+    return null;
+  }
+
+  return await geo.Geolocator.getCurrentPosition(
+      desiredAccuracy: geo.LocationAccuracy.high);
+}
+
+double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  const double R = 6371; // Rayon de la Terre en km
+  double dLat = (lat2 - lat1) * pi / 180;
+  double dLon = (lon2 - lon1) * pi / 180;
+
+  double a = sin(dLat / 2) * sin(dLat / 2) +
+      cos(lat1 * pi / 180) * cos(lat2 * pi / 180) *
+          sin(dLon / 2) * sin(dLon / 2);
+  double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+  return R * c; // Distance en km
+}
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +68,7 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -21,11 +76,87 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: HomeScreen(),
+      home: LoginScreen(), // 🔥 Affiche d'abord la page de connexion
     );
   }
 }
 
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  _LoginScreenState createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool _locationPermissionDenied = false;
+
+  Future<void> _requestLocationPermission() async {
+    geo.LocationPermission permission = await geo.Geolocator.checkPermission();
+
+    if (permission == geo.LocationPermission.denied) {
+      permission = await geo.Geolocator.requestPermission();
+    }
+
+    if (permission == geo.LocationPermission.deniedForever) {
+      setState(() => _locationPermissionDenied = true);
+    } else if (permission != geo.LocationPermission.denied) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()), // 🔥 Passe à HomeScreen si accepté
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(Icons.location_on, size: 100, color: Colors.red),
+              const SizedBox(height: 20),
+              const Text(
+                "Bienvenue sur Max ton pote !",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "Nous avons besoin de votre localisation pour vous montrer des utilisateurs proches.",
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton.icon(
+                onPressed: _requestLocationPermission,
+                icon: const Icon(Icons.gps_fixed),
+                label: const Text("Activer la localisation"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+                  textStyle: const TextStyle(fontSize: 18),
+                ),
+              ),
+              if (_locationPermissionDenied) ...[
+                const SizedBox(height: 20),
+                const Text(
+                  "Permission refusée. Vous pouvez l'activer dans les paramètres.",
+                  style: TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -161,17 +292,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-List<Map<String, dynamic>> generateUsers() {
+Future<List<Map<String, dynamic>>> generateUsers() async {
   final random = Random();
   final randomNames = RandomNames(Zone.us);
+  final List<String> cities = cityCoordinates.keys.toList();
+  geo.Position? userPosition = await getUserLocation();
 
   return List.generate(20, (index) {
+    String city = cities[random.nextInt(cities.length)];
+    double distance = 0;
+
+    if (userPosition != null && cityCoordinates.containsKey(city)) {
+      distance = calculateDistance(
+        userPosition.latitude,
+        userPosition.longitude,
+        cityCoordinates[city]!["lat"]!,
+        cityCoordinates[city]!["lng"]!,
+      );
+    }
+
     return {
       'name': randomNames.fullName(),
       'age': random.nextInt(30) + 18, // Âge entre 18 et 47 ans
-      'distance': random.nextDouble() * 50, // Distance entre 0 et 50 km
+      'distance': distance, // 🔥 Distance réelle
+      'city': city,
       'description': "Utilisateur sympathique qui aime discuter.",
-      'imageURL': "https://picsum.photos/200?random=$index", // Image aléatoire
+      'imageURL': "https://picsum.photos/200?random=$index",
     };
   });
 }
@@ -197,9 +343,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    users = generateUsers();
     _loadProfile();
-    _loadFavorites(); // 🔥 Charger les favoris
+    _loadFavorites();
+
+    generateUsers().then((generatedUsers) {
+      setState(() {
+        users = generatedUsers;
+      });
+    });
   }
 
   /// ✅ Charger les favoris depuis `SharedPreferences`
@@ -470,7 +621,7 @@ class FavoritesScreen extends StatelessWidget {
           return ListTile(
             leading: CircleAvatar(backgroundImage: NetworkImage(user['imageURL'])),
             title: Text(user['name'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            subtitle: Text("${user['age']} ans • ${user['distance'].toStringAsFixed(1)} km"),
+            subtitle: Text("${user['age']} ans • ${user['distance'].toStringAsFixed(1)} km • ${user['city']}"),
             trailing: IconButton(
               icon: const Icon(Icons.favorite, color: Colors.red),
               onPressed: () => toggleFavorite(user), // ❌ Retirer des favoris
@@ -531,6 +682,7 @@ class _UserListState extends State<UserList> {
               const SizedBox(height: 20),
               Text("Distance : ${user['distance'].toStringAsFixed(1)} km", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
+              Text("Ville : ${user['city']}", style: const TextStyle(fontSize: 18, color: Colors.grey)), // 🔥 Ajout de la ville
               ElevatedButton.icon(
                 icon: Icon(widget.favorites.contains(user) ? Icons.favorite : Icons.favorite_border, color: Colors.white),
                 label: Text(widget.favorites.contains(user) ? "Retirer des favoris" : "Ajouter aux favoris"),

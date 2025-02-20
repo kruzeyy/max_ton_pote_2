@@ -41,6 +41,7 @@ dependencies:
   random_name_generator: ^1.0.0
   flutter_dotenv: ^5.2.1
   geolocator: ^13.0.2
+  geocoding: ^3.0.0
 
 dev_dependencies:
   flutter_test:
