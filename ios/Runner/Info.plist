@@ -54,5 +54,17 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Cette application utilise votre position pour afficher des informations pertinentes sur la carte.</string>
 
+	<!-- Correction ici : Suppression de l'espace dans CFBundleURLTypes -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>com.googleusercontent.apps.379868647221-41r2s4ac6g0kcrooshd37bgrrb0poajg</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart' as geo;
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'dart:math';
 import 'package:random_name_generator/random_name_generator.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'main.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 final Map<String, Map<String, double>> cityCoordinates = {
   "Lyon": {"lat": 45.764, "lng": 4.8357},
@@ -63,8 +64,13 @@ double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load();
-  mapbox.MapboxOptions.setAccessToken(dotenv.get('TOKEN_MAP'));
+  await dotenv.load(); // Charge les variables d'environnement
+
+  await Supabase.initialize(
+    url: 'https://jlbgttnxwamvfhgfqbhv.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsYmd0dG54d2FtdmZoZ2ZxYmh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAwNjA4MTYsImV4cCI6MjA1NTYzNjgxNn0.esJ7BtZYU17bYJzTxCEfOTMFxA1pSjyfoJ5gMowaREk',
+  );
+
   runApp(const MyApp());
 }
 
@@ -119,7 +125,10 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Icon(Icons.location_on, size: 100, color: Colors.red),
+              Image.asset(
+                "assets/MaxTonPote-1.png",
+                height: 500,
+              ),
               const SizedBox(height: 20),
               const Text(
                 "Bienvenue sur Max ton pote !",
@@ -134,8 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 30),
               ElevatedButton.icon(
                 onPressed: _requestLocationPermission,
-                icon: const Icon(Icons.gps_fixed),
-                label: const Text("Activer la localisation"),
+                label: const Text("Bienvenue"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
@@ -165,74 +173,101 @@ class HomeScreen extends StatefulWidget {
 }
 
 class ProfileScreen extends StatefulWidget {
-  final String username;
-  final int age;
-  final String description;
-  final Function(String, int, String) onProfileChanged;
-
-  const ProfileScreen({
-    super.key,
-    required this.username,
-    required this.age,
-    required this.description,
-    required this.onProfileChanged,
-  });
+  const ProfileScreen({super.key, required String username, required int age, required String description, required void Function(String username, int age, String description) onProfileChanged});
 
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late TextEditingController _usernameController;
-  late TextEditingController _ageController;
-  late TextEditingController _descriptionController;
-  bool _isEditing = true;
+  final SupabaseClient supabase = Supabase.instance.client;
+  User? _user;
 
   @override
   void initState() {
     super.initState();
-    _usernameController = TextEditingController(text: widget.username);
-    _ageController = TextEditingController(text: widget.age.toString());
-    _descriptionController = TextEditingController(text: widget.description);
-    _loadEditingState(); // 🔥 Charger l'état du formulaire au démarrage
+    _checkUser();
   }
 
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    _ageController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
+  /// ✅ Vérifie si un utilisateur est connecté
+  Future<void> _checkUser() async {
+    print("🔹 Vérification de l'état de l'utilisateur...");
+
+    try {
+      setState(() {
+        _user = supabase.auth.currentUser;
+      });
+
+      if (_user != null) {
+        print("✅ Utilisateur connecté: ${_user!.email}");
+      } else {
+        print("❌ Aucun utilisateur connecté.");
+      }
+    } catch (e) {
+      print("❌ Erreur lors de la vérification de l'utilisateur: $e");
+    }
   }
 
-  /// ✅ Charger l'état d'édition depuis `SharedPreferences`
-  Future<void> _loadEditingState() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _isEditing = prefs.getBool('isEditing') ?? true;
-    });
+  /// ✅ Connexion avec Google
+  Future<void> _signInWithGoogle() async {
+    try {
+      print("🔹 Début de la connexion Google...");
+
+      final String iosClientId = dotenv.get('GOOGLE_IOS_CLIENT_ID');
+      final String webClientId = dotenv.get('GOOGLE_WEB_CLIENT_ID');
+
+      print("✅ GOOGLE_IOS_CLIENT_ID: $iosClientId");
+      print("✅ GOOGLE_WEB_CLIENT_ID: $webClientId");
+
+      print("🔹 Envoi de la requête d'authentification à Supabase...");
+
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: iosClientId,
+        serverClientId: webClientId,
+      );
+      final googleUser = await googleSignIn.signIn();
+      final googleAuth = await googleUser!.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (accessToken == null) {
+        throw 'No Access Token found.';
+      }
+      if (idToken == null) {
+        throw 'No ID Token found.';
+      }
+
+      final response = await supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      print("✅ Réponse de Supabase: $response");
+
+      print("🔹 Vérification de l'utilisateur après connexion...");
+      _checkUser();
+
+      print("✅ Connexion réussie !");
+    } catch (e) {
+      print("❌ Erreur lors de la connexion avec Google : $e");
+    }
   }
 
-  /// ✅ Sauvegarder l'état d'édition
-  Future<void> _saveEditingState(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isEditing', value);
-  }
+  /// ✅ Déconnexion
+  Future<void> _signOut() async {
+    try {
+      print("🔹 Déconnexion en cours...");
 
-  /// ✅ Sauvegarde le profil et l'état du formulaire
-  Future<void> _saveProfile() async {
-    final String username = _usernameController.text;
-    final int? age = int.tryParse(_ageController.text);
-    final String description = _descriptionController.text;
-
-    if (username.isNotEmpty && age != null && description.isNotEmpty) {
-      widget.onProfileChanged(username, age, description);
-
-      await _saveEditingState(false); // 🔥 Sauvegarde que le formulaire est fermé
+      await supabase.auth.signOut();
 
       setState(() {
-        _isEditing = false;
+        _user = null;
       });
+
+      print("✅ Déconnexion réussie !");
+    } catch (e) {
+      print("❌ Erreur lors de la déconnexion: $e");
     }
   }
 
@@ -247,44 +282,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: _isEditing
-              ? Column(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text("Pseudo :", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              TextField(controller: _usernameController, decoration: const InputDecoration(border: OutlineInputBorder())),
-              const SizedBox(height: 15),
-              const Text("Âge :", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              TextField(controller: _ageController, keyboardType: TextInputType.number, decoration: const InputDecoration(border: OutlineInputBorder())),
-              const SizedBox(height: 15),
-              const Text("Description :", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              TextField(controller: _descriptionController, decoration: const InputDecoration(border: OutlineInputBorder()), maxLines: 3),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _saveProfile,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text("Enregistrer", style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          )
-              : Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text("Pseudo : ${widget.username}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              Text("Âge : ${widget.age} ans", style: const TextStyle(fontSize: 18)),
-              const SizedBox(height: 10),
-              Text("Description : ${widget.description}", textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () async {
-                  await _saveEditingState(true); // 🔥 Sauvegarde que le formulaire doit s'afficher
-                  setState(() => _isEditing = true);
-                },
-                child: const Text("Modifier le profil"),
-              ),
+              if (_user == null) ...[
+                const Text(
+                  "Vous n'êtes pas connecté.",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _signInWithGoogle,
+                  icon: const Icon(Icons.login),
+                  label: const Text("Se connecter avec Google"),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                ),
+              ] else ...[
+                const Text(
+                  "Connecté avec Google",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  "Email : ${_user!.email}",
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _signOut,
+                  icon: const Icon(Icons.logout),
+                  label: const Text("Se déconnecter"),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                ),
+              ],
             ],
           ),
         ),
@@ -423,7 +453,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _pages,
+        children: [
+          UserList(users: users, toggleFavorite: _toggleFavorite, favorites: _favorites),
+          ProfileScreen(username: _username, age: _age, description: _description, onProfileChanged: _updateProfile),
+          FavoritesScreen(favorites: _favorites, toggleFavorite: _toggleFavorite),
+          MapScreen(),
+        ],
       ),
       bottomNavigationBar: CurvedNavigationBar(
         backgroundColor: Colors.white,
@@ -437,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Icon(Icons.people, size: 30, color: Colors.white),
           Icon(Icons.person, size: 30, color: Colors.white),
           Icon(Icons.favorite, size: 30, color: Colors.white),
-          Icon(Icons.map, size: 30, color: Colors.white), // 📍 Icône de la carte
+          Icon(Icons.map, size: 30, color: Colors.white),
         ],
         onTap: (index) {
           setState(() {
