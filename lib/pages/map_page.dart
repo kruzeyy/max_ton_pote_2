@@ -26,7 +26,6 @@ Future<geo.Position?> getUserLocation() async {
 
   serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
   if (!serviceEnabled) {
-    print("Service de localisation désactivé");
     return null;
   }
 
@@ -34,13 +33,11 @@ Future<geo.Position?> getUserLocation() async {
   if (permission == geo.LocationPermission.denied) {
     permission = await geo.Geolocator.requestPermission();
     if (permission == geo.LocationPermission.denied) {
-      print("Permission refusée");
       return null;
     }
   }
 
   if (permission == geo.LocationPermission.deniedForever) {
-    print("Permission refusée définitivement");
     return null;
   }
 
@@ -80,7 +77,6 @@ class _MapScreenState extends State<MapScreen> {
 
     serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      print("Service de localisation désactivé");
       return;
     }
 
@@ -88,13 +84,11 @@ class _MapScreenState extends State<MapScreen> {
     if (permission == geo.LocationPermission.denied) {
       permission = await geo.Geolocator.requestPermission();
       if (permission == geo.LocationPermission.denied) {
-        print("Permission refusée");
         return;
       }
     }
 
     if (permission == geo.LocationPermission.deniedForever) {
-      print("Permission refusée définitivement");
       return;
     }
 

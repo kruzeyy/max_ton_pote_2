@@ -79,12 +79,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         accessToken: accessToken,
       );
 
-      print("✅ Réponse de Supabase: $response");
 
-      print("🔹 Vérification de l'utilisateur après connexion...");
       _checkUser();
 
-      print("✅ Connexion réussie !");
     } catch (e) {
       print("❌ Erreur lors de la connexion avec Google : $e");
     }
