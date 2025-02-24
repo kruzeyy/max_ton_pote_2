@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 import 'package:random_name_generator/random_name_generator.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'complete_profile_screen.dart';
 import 'map_page.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, required String username, required int age, required String description, required void Function(String username, int age, String description) onProfileChanged});
+  const ProfileScreen({super.key});
 
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
@@ -44,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// ✅ Connexion avec Google
+  /// ✅ Connexion avec Google et vérification dans Supabase
   Future<void> _signInWithGoogle() async {
     try {
       print("🔹 Début de la connexion Google...");
@@ -52,36 +53,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final String iosClientId = dotenv.get('GOOGLE_IOS_CLIENT_ID');
       final String webClientId = dotenv.get('GOOGLE_WEB_CLIENT_ID');
 
-      print("✅ GOOGLE_IOS_CLIENT_ID: $iosClientId");
-      print("✅ GOOGLE_WEB_CLIENT_ID: $webClientId");
-
-      print("🔹 Envoi de la requête d'authentification à Supabase...");
-
       final GoogleSignIn googleSignIn = GoogleSignIn(
         clientId: iosClientId,
         serverClientId: webClientId,
       );
       final googleUser = await googleSignIn.signIn();
-      final googleAuth = await googleUser!.authentication;
-      final accessToken = googleAuth.accessToken;
-      final idToken = googleAuth.idToken;
+      final googleAuth = await googleUser?.authentication;
+      final idToken = googleAuth?.idToken;
+      final accessToken = googleAuth?.accessToken;
 
-      if (accessToken == null) {
-        throw 'No Access Token found.';
-      }
-      if (idToken == null) {
-        throw 'No ID Token found.';
+      if (idToken == null || accessToken == null) {
+        throw 'Google ID Token ou Access Token non trouvé.';
       }
 
+      // 🔹 Connexion avec Supabase
       final response = await supabase.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
         accessToken: accessToken,
       );
 
+      final user = response.user;
+      if (user == null) throw "Impossible d'obtenir l'utilisateur après connexion.";
 
-      _checkUser();
+      print("✅ Utilisateur connecté avec Google : ${user.email}");
 
+      // 🔹 Vérification si l'utilisateur est déjà enregistré dans la BDD
+      final userData = await supabase.from('User').select().eq('id', user.id).maybeSingle();
+
+      if (userData == null) {
+        print("❌ L'utilisateur n'existe pas, redirection vers le formulaire...");
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CompleteProfileScreen(
+              userId: user.id, // Ajout du `userId` pour éviter l'erreur
+              email: user.email ?? "",
+            ),
+          ),
+        );
+      } else {
+        print("✅ L'utilisateur existe, connexion réussie !");
+        setState(() {
+          _user = user;
+        });
+      }
     } catch (e) {
       print("❌ Erreur lors de la connexion avec Google : $e");
     }
@@ -155,6 +171,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
+
+/// ✅ Génère des utilisateurs fictifs pour les tests
 Future<List<Map<String, dynamic>>> generateUsers() async {
   final random = Random();
   final randomNames = RandomNames(Zone.us);

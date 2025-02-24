@@ -1,4 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:max_ton_pote_2/services/supabase_service.dart';
+import 'package:flutter/material.dart';
+
+class UserListPage extends StatefulWidget {
+  @override
+  _UserListPageState createState() => _UserListPageState();
+}
+
+class _UserListPageState extends State<UserListPage> {
+  List<Map<String, dynamic>> users = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUsers();
+  }
+
+  /// 📌 Fonction pour récupérer les utilisateurs depuis Supabase
+  Future<void> _fetchUsers() async {
+    final service = SupabaseService();
+    List<Map<String, dynamic>> fetchedUsers = await service.getAllUsers();
+    setState(() {
+      users = fetchedUsers;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("Liste des Utilisateurs")),
+      body: users.isEmpty
+          ? Center(child: CircularProgressIndicator())
+          : ListView.builder(
+        itemCount: users.length,
+        itemBuilder: (context, index) {
+          final user = users[index];
+          return ListTile(
+            title: Text(user['name'] ?? 'Utilisateur inconnu'),
+            subtitle: Text(user['email'] ?? 'Email inconnu'),
+          );
+        },
+      ),
+    );
+  }
+}
 
 class UserList extends StatefulWidget {
   final List<Map<String, dynamic>> users;

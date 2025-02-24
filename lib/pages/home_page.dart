@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:max_ton_pote_2/pages/profile_page.dart';
 import 'package:max_ton_pote_2/pages/user_list_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'favorites_page.dart';
 import 'map_page.dart';
 
@@ -14,12 +15,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late List<Map<String, dynamic>> users;
+  List<Map<String, dynamic>> users = [];
   List<Map<String, dynamic>> _favorites = []; // 🏆 Liste des favoris
   int _selectedIndex = 0;
   String _username = "";
   int _age = 18;
   String _description = "";
+  final SupabaseClient supabase = Supabase.instance.client;
 
   /// ✅ Charger les informations du profil depuis SharedPreferences
   Future<void> _loadProfile() async {
@@ -31,17 +33,28 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// ✅ Charger les utilisateurs depuis Supabase
+  Future<void> _loadUsers() async {
+    final response = await supabase.from('User').select('id, name, email, longitude, latitude, avatar_url');
+
+    if (response.isEmpty) {
+      print("❌ Aucun utilisateur trouvé.");
+      return;
+    }
+
+    setState(() {
+      users = List<Map<String, dynamic>>.from(response);
+    });
+
+    print("✅ Utilisateurs chargés depuis la base !");
+  }
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
     _loadFavorites();
-
-    generateUsers().then((generatedUsers) {
-      setState(() {
-        users = generatedUsers;
-      });
-    });
+    _loadUsers(); // 🔥 Charge les utilisateurs depuis Supabase
   }
 
   /// ✅ Charger les favoris depuis `SharedPreferences`
@@ -102,11 +115,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Ajout de la page MapScreen dans la liste des pages
+    // Ajout des pages dans la liste
     _pages.clear();
     _pages.addAll([
       UserList(users: users, toggleFavorite: _toggleFavorite, favorites: _favorites),
-      ProfileScreen(username: _username, age: _age, description: _description, onProfileChanged: _updateProfile),
+      const ProfileScreen(), // 🔥 Supprimé les arguments incorrects
       FavoritesScreen(favorites: _favorites, toggleFavorite: _toggleFavorite),
       MapScreen(),
     ]);
@@ -116,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _selectedIndex,
         children: [
           UserList(users: users, toggleFavorite: _toggleFavorite, favorites: _favorites),
-          ProfileScreen(username: _username, age: _age, description: _description, onProfileChanged: _updateProfile),
+          const ProfileScreen(), // 🔥 Supprimé les arguments incorrects
           FavoritesScreen(favorites: _favorites, toggleFavorite: _toggleFavorite),
           MapScreen(),
         ],
