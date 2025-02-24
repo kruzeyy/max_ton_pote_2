@@ -24,6 +24,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _checkUser();
+
+    // 🔥 Ajoute un listener pour écouter les changements d'état d'authentification
+    supabase.auth.onAuthStateChange.listen((event) {
+      setState(() {
+        _user = supabase.auth.currentUser;
+      });
+    });
   }
 
   /// ✅ Vérifie si un utilisateur est connecté
