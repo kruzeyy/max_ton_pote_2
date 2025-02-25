@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:max_ton_pote_2/services/supabase_service.dart';
-import 'package:flutter/material.dart';
 
 class UserListPage extends StatefulWidget {
   @override
@@ -9,6 +8,7 @@ class UserListPage extends StatefulWidget {
 
 class _UserListPageState extends State<UserListPage> {
   List<Map<String, dynamic>> users = [];
+  final SupabaseService supabaseService = SupabaseService();
 
   @override
   void initState() {
@@ -16,73 +16,28 @@ class _UserListPageState extends State<UserListPage> {
     _fetchUsers();
   }
 
-  /// 📌 Fonction pour récupérer les utilisateurs depuis Supabase
+  /// 📌 Récupérer tous les utilisateurs de Supabase
   Future<void> _fetchUsers() async {
-    final service = SupabaseService();
-    List<Map<String, dynamic>> fetchedUsers = await service.getAllUsers();
-    setState(() {
-      users = fetchedUsers;
-    });
+    try {
+      print("🔹 Chargement des utilisateurs...");
+      final service = SupabaseService();
+      List<Map<String, dynamic>> fetchedUsers = await service.getAllUsers();
+
+      if (mounted) {
+        setState(() {
+          users = fetchedUsers;
+        });
+      }
+
+      if (users.isEmpty) {
+        print("⚠️ Aucun utilisateur trouvé !");
+      }
+    } catch (e) {
+      print("❌ Erreur lors du chargement des utilisateurs : $e");
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("Liste des Utilisateurs")),
-      body: users.isEmpty
-          ? Center(child: CircularProgressIndicator())
-          : ListView.builder(
-        itemCount: users.length,
-        itemBuilder: (context, index) {
-          final user = users[index];
-          return ListTile(
-            title: Text(user['name'] ?? 'Utilisateur inconnu'),
-            subtitle: Text(user['email'] ?? 'Email inconnu'),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class UserList extends StatefulWidget {
-  final List<Map<String, dynamic>> users;
-  final Function(Map<String, dynamic>) toggleFavorite;
-  final List<Map<String, dynamic>> favorites;
-
-  const UserList({
-    super.key,
-    required this.users,
-    required this.toggleFavorite,
-    required this.favorites,
-  });
-
-  @override
-  _UserListState createState() => _UserListState();
-}
-
-class _UserListState extends State<UserList> {
-  TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _filteredUsers = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredUsers = widget.users;
-  }
-
-  void _filterUsers(String query) {
-    setState(() {
-      _filteredUsers =
-          widget.users
-              .where(
-                (user) =>
-                    user['name'].toLowerCase().contains(query.toLowerCase()),
-              )
-              .toList();
-    });
-  }
-
+  /// 📌 Fonction pour afficher les détails d'un utilisateur
   void _showUserDetails(BuildContext context, Map<String, dynamic> user) {
     showModalBottomSheet(
       context: context,
@@ -97,11 +52,13 @@ class _UserListState extends State<UserList> {
             children: [
               CircleAvatar(
                 radius: 50,
-                backgroundImage: NetworkImage(user['imageURL']),
+                backgroundImage: user['avatar_url'] != null && user['avatar_url'].isNotEmpty
+                    ? NetworkImage(user['avatar_url'])
+                    : AssetImage("assets/default_avatar.png") as ImageProvider, // 🔥 Avatar par défaut si absent
               ),
               const SizedBox(height: 10),
               Text(
-                user['name'],
+                user['name'] ?? 'Utilisateur inconnu',
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -109,46 +66,16 @@ class _UserListState extends State<UserList> {
               ),
               const SizedBox(height: 5),
               Text(
-                "${user['age']} ans",
+                user['email'] ?? 'Email inconnu',
                 style: const TextStyle(fontSize: 18, color: Colors.grey),
               ),
               const SizedBox(height: 15),
               Text(
-                user['description'],
+                user['description'] ?? "Aucune description",
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 20),
-              Text(
-                "Distance : ${user['distance'].toStringAsFixed(1)} km",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                "Ville : ${user['city']}",
-                style: const TextStyle(fontSize: 18, color: Colors.grey),
-              ), // 🔥 Ajout de la ville
-              ElevatedButton.icon(
-                icon: Icon(
-                  widget.favorites.contains(user)
-                      ? Icons.favorite
-                      : Icons.favorite_border,
-                  color: Colors.white,
-                ),
-                label: Text(
-                  widget.favorites.contains(user)
-                      ? "Retirer des favoris"
-                      : "Ajouter aux favoris",
-                ),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () {
-                  widget.toggleFavorite(user);
-                  Navigator.pop(context); // Fermer le modal après l'action
-                },
-              ),
             ],
           ),
         );
@@ -159,58 +86,27 @@ class _UserListState extends State<UserList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Max ton pote"),
-        centerTitle: true,
-        backgroundColor: Colors.red,
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(10.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: "Rechercher un utilisateur",
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+      appBar: AppBar(title: Text("Liste des Utilisateurs")),
+      body: RefreshIndicator(
+        onRefresh: _fetchUsers, // 🔥 Rafraîchir la liste après connexion
+        child: users.isEmpty
+            ? Center(child: CircularProgressIndicator())
+            : ListView.builder(
+          itemCount: users.length,
+          itemBuilder: (context, index) {
+            final user = users[index];
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundImage: user['avatar_url'] != null && user['avatar_url'].isNotEmpty
+                    ? NetworkImage(user['avatar_url'])
+                    : AssetImage("assets/default_avatar.png") as ImageProvider,
               ),
-              onChanged: _filterUsers,
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _filteredUsers.length,
-              itemBuilder: (context, index) {
-                final user = _filteredUsers[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: NetworkImage(user['imageURL']),
-                  ),
-                  title: Text(
-                    user['name'],
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  trailing: IconButton(
-                    icon: Icon(
-                      widget.favorites.contains(user)
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      color: Colors.red,
-                    ),
-                    onPressed: () => widget.toggleFavorite(user),
-                  ),
-                  onTap: () => _showUserDetails(context, user),
-                );
-              },
-            ),
-          ),
-        ],
+              title: Text(user['name'] ?? 'Utilisateur inconnu'),
+              subtitle: Text(user['email'] ?? 'Email inconnu'),
+              onTap: () => _showUserDetails(context, user),
+            );
+          },
+        ),
       ),
     );
   }

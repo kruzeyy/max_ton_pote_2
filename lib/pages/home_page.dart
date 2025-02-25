@@ -16,12 +16,19 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> users = [];
-  List<Map<String, dynamic>> _favorites = []; // 🏆 Liste des favoris
+  List<Map<String, dynamic>> _favorites = [];
   int _selectedIndex = 0;
   String _username = "";
   int _age = 18;
   String _description = "";
   final SupabaseClient supabase = Supabase.instance.client;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+    _loadUsers();
+  }
 
   /// ✅ Charger les informations du profil depuis SharedPreferences
   Future<void> _loadProfile() async {
@@ -47,14 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     print("✅ Utilisateurs chargés depuis la base !");
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProfile();
-    _loadFavorites();
-    _loadUsers(); // 🔥 Charge les utilisateurs depuis Supabase
+    _loadFavorites(); // 🔥 Charger les favoris après avoir récupéré les utilisateurs
   }
 
   /// ✅ Charger les favoris depuis `SharedPreferences`
@@ -64,13 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (favs != null) {
       setState(() {
-        _favorites = favs
-            .map((e) => users.firstWhere(
-              (user) => user['name'] == e,
-          orElse: () => <String, dynamic>{}, // ✅ Retourne un Map vide au lieu de {}
-        ))
-            .where((user) => user.isNotEmpty) // ✅ Filtrer les valeurs vides
-            .toList();
+        _favorites = users.where((user) => favs.contains(user['name'])).toList();
       });
     }
   }
@@ -82,20 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
       'favorites',
       _favorites.map((e) => e['name'] as String).toList(),
     );
-  }
-
-  /// ✅ Met à jour et sauvegarde le profil
-  void _updateProfile(String username, int age, String description) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('username', username);
-    await prefs.setInt('age', age);
-    await prefs.setString('description', description);
-
-    setState(() {
-      _username = username;
-      _age = age;
-      _description = description;
-    });
   }
 
   /// ✅ Ajouter ou retirer des favoris
@@ -111,28 +91,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// ✅ Liste des pages à afficher
-  final List<Widget> _pages = [];
+  final List<Widget> _pages = [
+    UserListPage(), // 🔥 Correction ici
+    const ProfileScreen(),
+    FavoritesScreen(favorites: [], toggleFavorite: (user) {}), // 🔥 Ajout des bons arguments
+    const MapScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    // Ajout des pages dans la liste
-    _pages.clear();
-    _pages.addAll([
-      UserList(users: users, toggleFavorite: _toggleFavorite, favorites: _favorites),
-      const ProfileScreen(), // 🔥 Supprimé les arguments incorrects
-      FavoritesScreen(favorites: _favorites, toggleFavorite: _toggleFavorite),
-      MapScreen(),
-    ]);
-
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: [
-          UserList(users: users, toggleFavorite: _toggleFavorite, favorites: _favorites),
-          const ProfileScreen(), // 🔥 Supprimé les arguments incorrects
-          FavoritesScreen(favorites: _favorites, toggleFavorite: _toggleFavorite),
-          MapScreen(),
-        ],
+        children: _pages,
       ),
       bottomNavigationBar: CurvedNavigationBar(
         backgroundColor: Colors.white,

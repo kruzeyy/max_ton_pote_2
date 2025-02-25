@@ -112,19 +112,24 @@ class SupabaseService {
   /// 📌 Récupérer tous les utilisateurs
   Future<List<Map<String, dynamic>>> getAllUsers() async {
     try {
-      print("🔹 Récupération de tous les utilisateurs...");
+      print("🔹 Requête pour récupérer les utilisateurs en cours...");
+      final currentUser = supabase.auth.currentUser;
+      final response = await supabase
+          .from('User')
+          .select('*')
+          .neq('id', currentUser?.id as Object); // Exclut l'utilisateur connecté
 
-      final response = await supabase.from('User').select('id, name, email, longitude, latitude, avatar_url, description');
+      print("🔍 Réponse brute de Supabase : $response");
 
-      if (response.isEmpty) {
-        print("❌ Aucun utilisateur trouvé.");
+      if (response == null || response.isEmpty) {
+        print("⚠️ Aucun utilisateur trouvé dans la base de données.");
         return [];
       }
 
-      print("✅ Utilisateurs récupérés : ${response.length}");
+      print("✅ Utilisateurs récupérés depuis Supabase : ${response.length}");
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      print("❌ Exception lors de la récupération des utilisateurs : $e");
+      print("❌ Erreur Supabase lors de la récupération des utilisateurs : $e");
       return [];
     }
   }
