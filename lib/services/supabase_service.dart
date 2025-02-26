@@ -4,6 +4,112 @@ import 'dart:io';
 class SupabaseService {
   final supabase = Supabase.instance.client;
 
+  /// 📌 Enregistrer un nouvel utilisateur avec avatar et description
+  Future<void> saveUserProfile({
+    required String userId,
+    required String name,
+    required String email,
+    required double longitude,
+    required double latitude,
+    required String? avatarFilePath,
+    required String description,
+  }) async {
+    try {
+      print("🔹 Enregistrement du profil utilisateur...");
+
+      String? avatarUrl;
+      if (avatarFilePath != null && avatarFilePath.isNotEmpty) {
+        avatarUrl = await uploadAvatar(avatarFilePath, userId);
+      }
+
+      await supabase.from('User').insert({
+        'id': userId,
+        'created_at': DateTime.now().toIso8601String(),
+        'name': name.isNotEmpty ? name : "Utilisateur inconnu",
+        'email': email,
+        'longitude': longitude,
+        'latitude': latitude,
+        'avatar_url': avatarUrl ?? "",
+        'description': description,
+      });
+
+      print("✅ Profil utilisateur enregistré avec succès !");
+    } catch (e) {
+      print("❌ Erreur lors de l'enregistrement du profil : $e");
+    }
+  }
+
+  /// 📌 Récupérer un utilisateur par email
+  /// 📌 Récupérer un utilisateur par email
+  Future<Map<String, dynamic>?> getUserByEmail(String email) async {
+    try {
+      final response = await supabase
+          .from('User')
+          .select('email, favorites')
+          .eq('email', email)
+          .maybeSingle();
+
+      // 🔥 Correction : Vérifier si `favorites` est `null` et le remplacer par `[]`
+      if (response != null) {
+        response['favorites'] = response['favorites'] ?? [];
+      }
+
+      print("🔍 Données récupérées pour $email après mise à jour : $response");
+      return response;
+    } catch (e) {
+      print("❌ Erreur lors de la récupération de l'utilisateur par email : $e");
+      return null;
+    }
+  }
+
+
+  /// 📌 Mettre à jour la liste des favoris de l'utilisateur connecté
+  Future<void> updateFavorites(String email, List<String> favorites) async {
+    try {
+      print("🛠️ Mise à jour des favoris pour $email : $favorites");
+
+      if (email.isEmpty) {
+        print("❌ Erreur : L'email est vide !");
+        return;
+      }
+
+      // 🔥 Correction : Transformer `favorites` en `text[]` pour Supabase
+      final formattedFavorites = favorites.isNotEmpty ? '{' + favorites.join(',') + '}' : '{}';
+
+      final response = await supabase
+          .from('User')
+          .update({
+        'favorites': formattedFavorites,  // ✅ Envoie un vrai `text[]`
+      })
+          .eq('email', email)
+          .select();
+
+      print("✅ Favoris mis à jour avec succès ! Données retournées : $response");
+    } catch (e) {
+      print("❌ Erreur lors de la mise à jour des favoris : $e");
+    }
+  }
+
+  /// 📌 Récupérer l'utilisateur connecté
+  Future<Map<String, dynamic>?> getCurrentUser() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final response = await supabase
+          .from('User')
+          .select('email, favorites')
+          .eq('email', user.email!)
+          .maybeSingle();
+
+      print("🔍 Données récupérées pour ${user.email} : $response");
+      return response;
+    } catch (e) {
+      print("❌ Erreur lors de la récupération de l'utilisateur connecté : $e");
+      return null;
+    }
+  }
+
   /// 📌 Connexion avec Google et gestion de l'utilisateur
   Future<void> signInWithGoogle(Function onUserNotFound) async {
     try {
@@ -24,15 +130,9 @@ class SupabaseService {
 
       print("✅ Utilisateur connecté avec Google : ${user.email}");
 
-      // Vérifier si l'utilisateur existe déjà
-      final existingUser = await supabase
-          .from('User')
-          .select('id, avatar_url, description') // 🔹 Ajout de description
-          .eq('id', user.id)
-          .maybeSingle();
-
+      final existingUser = await getUserByEmail(user.email!);
       if (existingUser != null) {
-        print("✅ L'utilisateur existe déjà. Avatar : ${existingUser['avatar_url']}");
+        print("✅ L'utilisateur existe déjà.");
         return;
       }
 
@@ -44,71 +144,6 @@ class SupabaseService {
     }
   }
 
-  /// 📌 Récupérer un utilisateur spécifique
-  Future<Map<String, dynamic>?> getUserById(String userId) async {
-    try {
-      print("🔹 Récupération de l'utilisateur $userId...");
-
-      final response = await supabase
-          .from('User')
-          .select('id, name, email, longitude, latitude, avatar_url, description') // 🔹 Ajout de description
-          .eq('id', userId)
-          .maybeSingle();
-
-      if (response == null) {
-        print("❌ Utilisateur non trouvé.");
-        return null;
-      }
-
-      print("✅ Utilisateur récupéré : ${response['name']}, Avatar : ${response['avatar_url']}, Description : ${response['description']}");
-      return response;
-    } catch (e) {
-      print("❌ Erreur lors de la récupération de l'utilisateur : $e");
-      return null;
-    }
-  }
-
-  /// 📌 Enregistrer un nouvel utilisateur avec avatar et description
-  Future<void> saveUserProfile({
-    required String userId,
-    required String name,
-    required String email,
-    required double longitude,
-    required double latitude,
-    required String? avatarFilePath,
-    required String description,
-  }) async {
-    try {
-      print("🔹 Enregistrement du profil utilisateur...");
-
-      String? avatarUrl;
-      if (avatarFilePath != null) {
-        avatarUrl = await uploadAvatar(avatarFilePath, userId);
-      }
-
-      await supabase.from('User').insert({
-        'id': userId,
-        'created_at': DateTime.now().toIso8601String(),
-        'name': name.isNotEmpty ? name : "Utilisateur inconnu",
-        'email': email,
-        'longitude': longitude,
-        'latitude': latitude,
-        'avatar_url': avatarUrl ?? "",
-        'description': description,
-      });
-
-      print("✅ Profil utilisateur enregistré avec succès !");
-
-      // Vérifier si l'utilisateur est bien enregistré
-      final user = await getUserById(userId);
-      if (user != null) {
-        print("🔹 Vérification Avatar URL : ${user['avatar_url']}, Description : ${user['description']}");
-      }
-    } catch (e) {
-      print("❌ Erreur lors de l'enregistrement du profil : $e");
-    }
-  }
-
   /// 📌 Récupérer tous les utilisateurs
   Future<List<Map<String, dynamic>>> getAllUsers() async {
     try {
@@ -117,14 +152,7 @@ class SupabaseService {
       final response = await supabase
           .from('User')
           .select('*')
-          .neq('id', currentUser?.id as Object); // Exclut l'utilisateur connecté
-
-      print("🔍 Réponse brute de Supabase : $response");
-
-      if (response == null || response.isEmpty) {
-        print("⚠️ Aucun utilisateur trouvé dans la base de données.");
-        return [];
-      }
+          .neq('email', currentUser?.email as Object);
 
       print("✅ Utilisateurs récupérés depuis Supabase : ${response.length}");
       return List<Map<String, dynamic>>.from(response);
@@ -145,7 +173,6 @@ class SupabaseService {
         return null;
       }
 
-      // Génération d'un nom unique
       final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.png';
 
       final response = await supabase.storage.from('avatars').upload(
@@ -162,7 +189,6 @@ class SupabaseService {
       final publicUrl = supabase.storage.from('avatars').getPublicUrl('avatars/$userId/$fileName');
       print("✅ Avatar uploadé avec succès : $publicUrl");
 
-      // Mise à jour de l'URL de l'avatar
       await supabase.from('User').update({'avatar_url': publicUrl}).eq('id', userId);
 
       return publicUrl;

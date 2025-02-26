@@ -7,6 +7,8 @@ class UserListPage extends StatefulWidget {
 }
 
 class _UserListPageState extends State<UserListPage> {
+  String? currentUserEmail; // Email de l'utilisateur connecté
+  Map<String, bool> favoriteUsers = {}; //
   List<Map<String, dynamic>> users = [];
   final SupabaseService supabaseService = SupabaseService();
 
@@ -14,6 +16,56 @@ class _UserListPageState extends State<UserListPage> {
   void initState() {
     super.initState();
     _fetchUsers();
+    _getCurrentUserEmail();
+  }
+
+  /// 📌 Récupérer l'email de l'utilisateur connecté
+  Future<void> _getCurrentUserEmail() async {
+    try {
+      final response = await supabaseService.getCurrentUser();
+      if (response != null) {
+        setState(() {
+          currentUserEmail = response['email'];
+        });
+        print("✅ Utilisateur connecté : $currentUserEmail");
+      } else {
+        print("❌ Aucun utilisateur connecté !");
+      }
+    } catch (e) {
+      print("❌ Erreur lors de la récupération de l'utilisateur connecté : $e");
+    }
+  }
+
+  /// 📌 Basculer l'état du bouton cœur et mettre à jour Supabase
+  void _toggleFavorite(String targetUserEmail) async {
+    if (currentUserEmail == null) return;
+
+    try {
+      // 🔹 Récupérer la liste actuelle des favoris
+      final userResponse = await supabaseService.getUserByEmail(currentUserEmail!);
+      List<String> favorites = userResponse?['favorites'] != null
+          ? List<String>.from(userResponse?['favorites'])
+          : [];
+
+      // 🔥 Ajouter ou supprimer l'utilisateur cible des favoris
+      if (favorites.contains(targetUserEmail)) {
+        favorites.remove(targetUserEmail);
+      } else {
+        favorites.add(targetUserEmail);
+      }
+
+      // 🔹 Mettre à jour la base de données Supabase
+      await supabaseService.updateFavorites(currentUserEmail!, favorites);
+
+      // 🔄 Mettre à jour l'état local pour l'affichage
+      setState(() {
+        favoriteUsers[targetUserEmail] = favorites.contains(targetUserEmail);
+      });
+
+      print("✅ Favoris mis à jour : $favorites");
+    } catch (e) {
+      print("❌ Erreur lors de la mise à jour des favoris : $e");
+    }
   }
 
   /// 📌 Récupérer tous les utilisateurs de Supabase
@@ -103,6 +155,18 @@ class _UserListPageState extends State<UserListPage> {
               ),
               title: Text(user['name'] ?? 'Utilisateur inconnu'),
               subtitle: Text(user['email'] ?? 'Email inconnu'),
+              trailing: GestureDetector(
+                onTap: () => _toggleFavorite(user['email']),
+                child: AnimatedContainer(
+                  duration: Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: Icon(
+                    favoriteUsers[user['email']] == true ? Icons.favorite : Icons.favorite_border,
+                    color: favoriteUsers[user['email']] == true ? Colors.red : Colors.grey,
+                    size: 30,
+                  ),
+                ),
+              ),
               onTap: () => _showUserDetails(context, user),
             );
           },
