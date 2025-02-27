@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:max_ton_pote_2/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -17,17 +18,28 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _longitudeController = TextEditingController();
   final TextEditingController _latitudeController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController(); // 🔹 Ajout du champ description
+  final TextEditingController _descriptionController = TextEditingController();
 
   String avatarUrl = '';
   File? avatarFile;
   final SupabaseService supabaseService = SupabaseService();
 
+  /// 📌 Fonction pour formater les coordonnées (ajout automatique d'une virgule après le 2ᵉ chiffre)
+  String _formatCoordinate(String input) {
+    // Supprime tout sauf les chiffres
+    String cleaned = input.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (cleaned.length > 2) {
+      return '${cleaned.substring(0, 2)},${cleaned.substring(2)}'; // Insère une virgule après 2 chiffres
+    }
+    return cleaned; // Retourne tel quel si < 2 chiffres
+  }
+
   /// 📌 Fonction pour enregistrer le profil
   Future<void> _saveProfile() async {
     final name = _nameController.text.trim();
-    final longitude = double.tryParse(_longitudeController.text) ?? 0.0;
-    final latitude = double.tryParse(_latitudeController.text) ?? 0.0;
+    final longitude = double.tryParse(_longitudeController.text.replaceAll(',', '.')) ?? 0.0;
+    final latitude = double.tryParse(_latitudeController.text.replaceAll(',', '.')) ?? 0.0;
     final description = _descriptionController.text.trim();
 
     if (name.isEmpty) {
@@ -60,7 +72,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       longitude: longitude,
       latitude: latitude,
       avatarFilePath: avatarFile?.path,
-      description: description, // 🔹 Ajout de la description
+      description: description,
     );
 
     // Retourner à l'écran précédent après l'enregistrement
@@ -83,7 +95,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       appBar: AppBar(title: Text("Complétez votre profil")),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView( // 🔹 Ajout du scroll pour éviter les problèmes d'affichage
+        child: SingleChildScrollView(
           child: Column(
             children: [
               TextField(
@@ -94,20 +106,37 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 controller: _longitudeController,
                 decoration: InputDecoration(labelText: "Longitude"),
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (value) {
+                  setState(() {
+                    _longitudeController.text = _formatCoordinate(value);
+                    _longitudeController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: _longitudeController.text.length),
+                    );
+                  });
+                },
               ),
               TextField(
                 controller: _latitudeController,
                 decoration: InputDecoration(labelText: "Latitude"),
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (value) {
+                  setState(() {
+                    _latitudeController.text = _formatCoordinate(value);
+                    _latitudeController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: _latitudeController.text.length),
+                    );
+                  });
+                },
               ),
               TextField(
                 controller: _descriptionController,
                 decoration: InputDecoration(labelText: "Description"),
-                maxLines: 3, // 🔹 Permet une saisie plus confortable
+                maxLines: 3,
               ),
               const SizedBox(height: 20),
 
-              // 🔹 Affichage de l'avatar sélectionné
               if (avatarFile != null)
                 CircleAvatar(
                   radius: 50,
