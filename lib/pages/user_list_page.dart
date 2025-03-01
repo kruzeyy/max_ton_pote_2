@@ -7,16 +7,16 @@ class UserListPage extends StatefulWidget {
 }
 
 class _UserListPageState extends State<UserListPage> {
-  String? currentUserEmail; // Email de l'utilisateur connecté
-  Map<String, bool> favoriteUsers = {}; //
+  String? currentUserEmail;
+  Map<String, bool> favoriteUsers = {};
   List<Map<String, dynamic>> users = [];
   final SupabaseService supabaseService = SupabaseService();
 
   @override
   void initState() {
     super.initState();
-    _fetchUsers();
-    _getCurrentUserEmail();
+    _getCurrentUserEmail(); // Récupérer l'email de l'utilisateur connecté
+    _fetchUsers(); // Charger la liste des utilisateurs
   }
 
   /// 📌 Récupérer l'email de l'utilisateur connecté
@@ -27,7 +27,11 @@ class _UserListPageState extends State<UserListPage> {
         setState(() {
           currentUserEmail = response['email'];
         });
+
         print("✅ Utilisateur connecté : $currentUserEmail");
+
+        // Une fois l'email récupéré, on charge les favoris
+        await _fetchFavoriteUsers();
       } else {
         print("❌ Aucun utilisateur connecté !");
       }
@@ -36,12 +40,37 @@ class _UserListPageState extends State<UserListPage> {
     }
   }
 
+  /// 📌 Récupérer la liste des favoris de l'utilisateur connecté
+  Future<void> _fetchFavoriteUsers() async {
+    if (currentUserEmail == null) return;
+
+    try {
+      final userResponse = await supabaseService.getUserByEmail(currentUserEmail!);
+      List<String> favorites = userResponse?['favorites'] != null
+          ? List<String>.from(userResponse?['favorites'])
+          : [];
+
+      setState(() {
+        favoriteUsers = { for (var email in favorites) email: true };
+      });
+
+      print("✅ Favoris chargés : $favoriteUsers");
+    } catch (e) {
+      print("❌ Erreur lors de la récupération des favoris : $e");
+    }
+  }
+
   /// 📌 Basculer l'état du bouton cœur et mettre à jour Supabase
   void _toggleFavorite(String targetUserEmail) async {
     if (currentUserEmail == null) return;
 
     try {
-      // 🔹 Récupérer la liste actuelle des favoris
+      // 🔹 Mise à jour immédiate de l'UI
+      setState(() {
+        favoriteUsers[targetUserEmail] = !(favoriteUsers[targetUserEmail] ?? false);
+      });
+
+      // 🔹 Récupérer les favoris actuels de l'utilisateur
       final userResponse = await supabaseService.getUserByEmail(currentUserEmail!);
       List<String> favorites = userResponse?['favorites'] != null
           ? List<String>.from(userResponse?['favorites'])
@@ -57,11 +86,6 @@ class _UserListPageState extends State<UserListPage> {
       // 🔹 Mettre à jour la base de données Supabase
       await supabaseService.updateFavorites(currentUserEmail!, favorites);
 
-      // 🔄 Mettre à jour l'état local pour l'affichage
-      setState(() {
-        favoriteUsers[targetUserEmail] = favorites.contains(targetUserEmail);
-      });
-
       print("✅ Favoris mis à jour : $favorites");
     } catch (e) {
       print("❌ Erreur lors de la mise à jour des favoris : $e");
@@ -72,8 +96,7 @@ class _UserListPageState extends State<UserListPage> {
   Future<void> _fetchUsers() async {
     try {
       print("🔹 Chargement des utilisateurs...");
-      final service = SupabaseService();
-      List<Map<String, dynamic>> fetchedUsers = await service.getAllUsers();
+      final fetchedUsers = await supabaseService.getAllUsers();
 
       if (mounted) {
         setState(() {
@@ -89,7 +112,7 @@ class _UserListPageState extends State<UserListPage> {
     }
   }
 
-  /// 📌 Fonction pour afficher les détails d'un utilisateur
+  /// 📌 Afficher les détails d'un utilisateur
   void _showUserDetails(BuildContext context, Map<String, dynamic> user) {
     showModalBottomSheet(
       context: context,
@@ -106,7 +129,7 @@ class _UserListPageState extends State<UserListPage> {
                 radius: 50,
                 backgroundImage: user['avatar_url'] != null && user['avatar_url'].isNotEmpty
                     ? NetworkImage(user['avatar_url'])
-                    : AssetImage("assets/default_avatar.png") as ImageProvider, // 🔥 Avatar par défaut si absent
+                    : AssetImage("assets/default_avatar.png") as ImageProvider,
               ),
               const SizedBox(height: 10),
               Text(
@@ -147,6 +170,8 @@ class _UserListPageState extends State<UserListPage> {
           itemCount: users.length,
           itemBuilder: (context, index) {
             final user = users[index];
+            final isFavorite = favoriteUsers[user['email']] ?? false; // Vérification stricte
+
             return ListTile(
               leading: CircleAvatar(
                 backgroundImage: user['avatar_url'] != null && user['avatar_url'].isNotEmpty
@@ -161,8 +186,8 @@ class _UserListPageState extends State<UserListPage> {
                   duration: Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
                   child: Icon(
-                    favoriteUsers[user['email']] == true ? Icons.favorite : Icons.favorite_border,
-                    color: favoriteUsers[user['email']] == true ? Colors.red : Colors.grey,
+                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: isFavorite ? Colors.red : Colors.grey,
                     size: 30,
                   ),
                 ),

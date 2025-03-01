@@ -103,8 +103,12 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// ✅ Ajoute un marqueur sur la position actuelle de l'utilisateur
+  /// ✅ Ajoute un marqueur sur la position actuelle de l'utilisateur
   Future<void> _addUserLocationMarker(geo.Position position) async {
-    if (_annotationManager == null) return;
+    if (!mounted || _annotationManager == null) {
+      print("⚠️ _annotationManager n'est pas encore prêt !");
+      return;
+    }
 
     await _annotationManager.create(
       mapbox.PointAnnotationOptions(
@@ -116,6 +120,8 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
     );
+
+    print("✅ Marqueur ajouté à la position : ${position.latitude}, ${position.longitude}");
   }
 
   /// ✅ Centre la carte sur la position actuelle
@@ -158,19 +164,23 @@ class _MapScreenState extends State<MapScreen> {
           bearing: 0,
           pitch: 0,
         ),
-        onMapCreated: (mapbox.MapboxMap mapboxMap) async {
-          _mapboxMap = mapboxMap; // ✅ Stocker la référence de la carte
-          _annotationManager =
-          await mapboxMap.annotations.createPointAnnotationManager();
-          _addUserLocationMarker(_currentPosition!);
+          onMapCreated: (mapbox.MapboxMap mapboxMap) async {
+            _mapboxMap = mapboxMap; // ✅ Stocker la référence de la carte
+            _annotationManager = await mapboxMap.annotations.createPointAnnotationManager();
 
-          // ✅ Active le suivi de localisation avec un effet de pulsation en bleu
-          mapboxMap.location.updateSettings(mapbox.LocationComponentSettings(
-            enabled: true,
-            pulsingEnabled: true,
-            pulsingColor: Colors.blue.value,
-          ));
-        },
+            if (_currentPosition != null) {
+              _addUserLocationMarker(_currentPosition!); // 🔥 Ajout du marqueur uniquement si position dispo
+            }
+
+            // ✅ Active le suivi de localisation avec un effet de pulsation en bleu
+            mapboxMap.location.updateSettings(mapbox.LocationComponentSettings(
+              enabled: true,
+              pulsingEnabled: true,
+              pulsingColor: Colors.blue.value,
+            ));
+
+            print("✅ _annotationManager initialisé et prêt à l'emploi !");
+          }
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
