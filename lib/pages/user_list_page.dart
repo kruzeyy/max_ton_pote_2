@@ -15,8 +15,13 @@ class _UserListPageState extends State<UserListPage> {
   @override
   void initState() {
     super.initState();
-    _getCurrentUserEmail(); // Récupérer l'email de l'utilisateur connecté
-    _fetchUsers(); // Charger la liste des utilisateurs
+    _initializeData(); // 🔥 Chargement initial
+  }
+
+  /// 📌 Fonction qui charge l'utilisateur et ses favoris
+  Future<void> _initializeData() async {
+    await _getCurrentUserEmail();
+    await _fetchUsers(); // 🔥 Charge les utilisateurs et les favoris
   }
 
   /// 📌 Récupérer l'email de l'utilisateur connecté
@@ -27,10 +32,9 @@ class _UserListPageState extends State<UserListPage> {
         setState(() {
           currentUserEmail = response['email'];
         });
-
         print("✅ Utilisateur connecté : $currentUserEmail");
 
-        // Une fois l'email récupéré, on charge les favoris
+        // Charger les favoris après récupération de l'email
         await _fetchFavoriteUsers();
       } else {
         print("❌ Aucun utilisateur connecté !");
@@ -45,16 +49,33 @@ class _UserListPageState extends State<UserListPage> {
     if (currentUserEmail == null) return;
 
     try {
+      // 🔥 Vérification après connexion pour s'assurer qu'on récupère le bon utilisateur
+      final loggedInUser = await supabaseService.getCurrentUser();
+      if (loggedInUser != null && loggedInUser['email'] != currentUserEmail) {
+        print("⚠️ Changement d'utilisateur détecté : ${loggedInUser['email']} (ancien: $currentUserEmail)");
+        setState(() {
+          currentUserEmail = loggedInUser['email'];
+        });
+      }
+
       final userResponse = await supabaseService.getUserByEmail(currentUserEmail!);
+
+      print("🔍 Données récupérées pour $currentUserEmail : $userResponse");
+
       List<String> favorites = userResponse?['favorites'] != null
           ? List<String>.from(userResponse?['favorites'])
           : [];
 
+      print("📥 Liste brute des favoris récupérés : $favorites");
+
       setState(() {
-        favoriteUsers = { for (var email in favorites) email: true };
+        favoriteUsers.clear();
+        for (var email in favorites) {
+          favoriteUsers[email] = true;
+        }
       });
 
-      print("✅ Favoris chargés : $favoriteUsers");
+      print("✅ Favoris mis à jour pour $currentUserEmail : $favoriteUsers");
     } catch (e) {
       print("❌ Erreur lors de la récupération des favoris : $e");
     }
@@ -65,12 +86,12 @@ class _UserListPageState extends State<UserListPage> {
     if (currentUserEmail == null) return;
 
     try {
-      // 🔹 Mise à jour immédiate de l'UI
+      // 🔹 Mise à jour locale immédiate
       setState(() {
         favoriteUsers[targetUserEmail] = !(favoriteUsers[targetUserEmail] ?? false);
       });
 
-      // 🔹 Récupérer les favoris actuels de l'utilisateur
+      // 🔹 Récupérer les favoris actuels
       final userResponse = await supabaseService.getUserByEmail(currentUserEmail!);
       List<String> favorites = userResponse?['favorites'] != null
           ? List<String>.from(userResponse?['favorites'])
@@ -85,14 +106,17 @@ class _UserListPageState extends State<UserListPage> {
 
       // 🔹 Mettre à jour la base de données Supabase
       await supabaseService.updateFavorites(currentUserEmail!, favorites);
+      print("🛠️ Mise à jour des favoris pour $currentUserEmail : $favorites");
 
-      print("✅ Favoris mis à jour : $favorites");
+      // 🔥 Rafraîchir les favoris après mise à jour
+      await Future.delayed(Duration(milliseconds: 300)); // 🔥 Attendre un peu pour s’assurer que Supabase met bien à jour
+      await _fetchFavoriteUsers();
     } catch (e) {
       print("❌ Erreur lors de la mise à jour des favoris : $e");
     }
   }
 
-  /// 📌 Récupérer tous les utilisateurs de Supabase
+  /// 📌 Récupérer tous les utilisateurs et rafraîchir les favoris
   Future<void> _fetchUsers() async {
     try {
       print("🔹 Chargement des utilisateurs...");
@@ -107,6 +131,9 @@ class _UserListPageState extends State<UserListPage> {
       if (users.isEmpty) {
         print("⚠️ Aucun utilisateur trouvé !");
       }
+
+      // 🔥 Toujours mettre à jour les favoris après avoir récupéré les utilisateurs
+      await _fetchFavoriteUsers();
     } catch (e) {
       print("❌ Erreur lors du chargement des utilisateurs : $e");
     }
@@ -163,16 +190,22 @@ class _UserListPageState extends State<UserListPage> {
     return Scaffold(
       appBar: AppBar(title: Text("Liste des Utilisateurs")),
       body: RefreshIndicator(
-        onRefresh: _fetchUsers, // 🔥 Rafraîchir la liste après connexion
+        onRefresh: () async {
+          print("🔄 Rafraîchissement en cours...");
+
+          await _getCurrentUserEmail(); // 🔥 Récupère d'abord le bon utilisateur
+          await _fetchUsers();
+          await _fetchFavoriteUsers();
+
+          print("✅ Rafraîchissement terminé !");
+        },
         child: users.isEmpty
             ? Center(child: CircularProgressIndicator())
             : ListView.builder(
           itemCount: users.length,
           itemBuilder: (context, index) {
             final user = users[index];
-            final isFavorite = favoriteUsers[user['email']] ?? false; // Vérification stricte
-
-            return ListTile(
+            final isFavorite = favoriteUsers.containsKey(user['email']) && favoriteUsers[user['email']] == true;            return ListTile(
               leading: CircleAvatar(
                 backgroundImage: user['avatar_url'] != null && user['avatar_url'].isNotEmpty
                     ? NetworkImage(user['avatar_url'])
