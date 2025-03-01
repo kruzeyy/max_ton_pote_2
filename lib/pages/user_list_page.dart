@@ -188,7 +188,10 @@ class _UserListPageState extends State<UserListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Liste des Utilisateurs")),
+      appBar: AppBar(
+        title: Text("Liste des Utilisateurs"),
+        backgroundColor: Colors.red, // 🔥 Ajout de la couleur rouge à l'AppBar
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           print("🔄 Rafraîchissement en cours...");
@@ -205,7 +208,9 @@ class _UserListPageState extends State<UserListPage> {
           itemCount: users.length,
           itemBuilder: (context, index) {
             final user = users[index];
-            final isFavorite = favoriteUsers.containsKey(user['email']) && favoriteUsers[user['email']] == true;            return ListTile(
+            final isFavorite = favoriteUsers.containsKey(user['email']) && favoriteUsers[user['email']] == true;
+
+            return ListTile(
               leading: CircleAvatar(
                 backgroundImage: user['avatar_url'] != null && user['avatar_url'].isNotEmpty
                     ? NetworkImage(user['avatar_url'])
