@@ -208,7 +208,9 @@ class _UserListPageState extends State<UserListPage> {
           itemCount: users.length,
           itemBuilder: (context, index) {
             final user = users[index];
-            final isFavorite = favoriteUsers.containsKey(user['email']) && favoriteUsers[user['email']] == true;            return ListTile(
+            final isFavorite = favoriteUsers.containsKey(user['email']) && favoriteUsers[user['email']] == true;
+
+            return ListTile(
               leading: CircleAvatar(
                 backgroundImage: user['avatar_url'] != null && user['avatar_url'].isNotEmpty
                     ? NetworkImage(user['avatar_url'])
