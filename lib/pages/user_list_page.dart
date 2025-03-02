@@ -188,7 +188,10 @@ class _UserListPageState extends State<UserListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Liste des Utilisateurs")),
+      appBar: AppBar(
+        title: Text("Liste des Utilisateurs"),
+        backgroundColor: Colors.red, // 🔥 Ajout de la couleur rouge à l'AppBar
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           print("🔄 Rafraîchissement en cours...");
