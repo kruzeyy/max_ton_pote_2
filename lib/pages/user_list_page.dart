@@ -8,11 +8,12 @@ class UserListPage extends StatefulWidget {
 }
 
 class _UserListPageState extends State<UserListPage> {
-  final SupabaseClient supabase = Supabase.instance.client; // ✅ Déclaration ici
+  final SupabaseClient supabase = Supabase.instance.client;
 
   String? currentUserEmail;
   Map<String, bool> favoriteUsers = {};
   List<Map<String, dynamic>> users = [];
+  bool showFavoritesOnly = false; // ✅ Nouvel état pour basculer entre tous les users et les favoris
   final SupabaseService supabaseService = SupabaseService();
 
   @override
@@ -20,21 +21,14 @@ class _UserListPageState extends State<UserListPage> {
     super.initState();
     _initializeData();
 
-    // 🔥 Ajout d'un écouteur pour détecter les changements d'authentification
     supabase.auth.onAuthStateChange.listen((event) async {
       final session = event.session;
       if (session?.user != null) {
-        print("✅ Nouveau compte détecté ou connexion réussie !");
-
-        // Met à jour l'email de l'utilisateur et recharge les données
         setState(() {
           currentUserEmail = session!.user!.email;
         });
-
-        // 🔥 Charge la liste des utilisateurs après inscription/connexion
         await _initializeData();
       } else {
-        print("❌ Déconnexion détectée !");
         setState(() {
           currentUserEmail = null;
           users.clear();
@@ -44,16 +38,14 @@ class _UserListPageState extends State<UserListPage> {
     });
   }
 
-  /// 📌 Fonction qui charge l'utilisateur et ses favoris
   Future<void> _initializeData() async {
     await _getCurrentUserEmail();
     if (currentUserEmail != null) {
-      await _fetchUsers(); // 🔥 Charge les utilisateurs après connexion
+      await _fetchUsers();
       await _fetchFavoriteUsers();
     }
   }
 
-  /// 📌 Récupérer l'email de l'utilisateur connecté
   Future<void> _getCurrentUserEmail() async {
     try {
       final response = await supabaseService.getCurrentUser();
@@ -61,42 +53,22 @@ class _UserListPageState extends State<UserListPage> {
         setState(() {
           currentUserEmail = response['email'];
         });
-        print("✅ Utilisateur connecté détecté automatiquement : $currentUserEmail");
-
-        // 🔥 Charger les utilisateurs et favoris immédiatement
         await _fetchUsers();
         await _fetchFavoriteUsers();
-      } else {
-        print("❌ Aucun utilisateur connecté !");
       }
     } catch (e) {
       print("❌ Erreur lors de la récupération de l'utilisateur connecté : $e");
     }
   }
 
-  /// 📌 Récupérer la liste des favoris de l'utilisateur connecté
   Future<void> _fetchFavoriteUsers() async {
     if (currentUserEmail == null) return;
 
     try {
-      // 🔥 Vérification après connexion pour s'assurer qu'on récupère le bon utilisateur
-      final loggedInUser = await supabaseService.getCurrentUser();
-      if (loggedInUser != null && loggedInUser['email'] != currentUserEmail) {
-        print("⚠️ Changement d'utilisateur détecté : ${loggedInUser['email']} (ancien: $currentUserEmail)");
-        setState(() {
-          currentUserEmail = loggedInUser['email'];
-        });
-      }
-
       final userResponse = await supabaseService.getUserByEmail(currentUserEmail!);
-
-      print("🔍 Données récupérées pour $currentUserEmail : $userResponse");
-
       List<String> favorites = userResponse?['favorites'] != null
           ? List<String>.from(userResponse?['favorites'])
           : [];
-
-      print("📥 Liste brute des favoris récupérés : $favorites");
 
       setState(() {
         favoriteUsers.clear();
@@ -104,71 +76,53 @@ class _UserListPageState extends State<UserListPage> {
           favoriteUsers[email] = true;
         }
       });
-
-      print("✅ Favoris mis à jour pour $currentUserEmail : $favoriteUsers");
     } catch (e) {
       print("❌ Erreur lors de la récupération des favoris : $e");
     }
   }
 
-  /// 📌 Basculer l'état du bouton cœur et mettre à jour Supabase
   void _toggleFavorite(String targetUserEmail) async {
     if (currentUserEmail == null) return;
 
     try {
-      // 🔹 Mise à jour locale immédiate
       setState(() {
         favoriteUsers[targetUserEmail] = !(favoriteUsers[targetUserEmail] ?? false);
       });
 
-      // 🔹 Récupérer les favoris actuels
       final userResponse = await supabaseService.getUserByEmail(currentUserEmail!);
       List<String> favorites = userResponse?['favorites'] != null
           ? List<String>.from(userResponse?['favorites'])
           : [];
 
-      // 🔥 Ajouter ou supprimer l'utilisateur cible des favoris
       if (favorites.contains(targetUserEmail)) {
         favorites.remove(targetUserEmail);
       } else {
         favorites.add(targetUserEmail);
       }
 
-      // 🔹 Mettre à jour la base de données Supabase
       await supabaseService.updateFavorites(currentUserEmail!, favorites);
-      print("🛠️ Mise à jour des favoris pour $currentUserEmail : $favorites");
-
-      // 🔥 Rafraîchir les favoris après mise à jour
-      await Future.delayed(Duration(milliseconds: 300)); // 🔥 Attendre un peu pour s’assurer que Supabase met bien à jour
+      await Future.delayed(Duration(milliseconds: 300));
       await _fetchFavoriteUsers();
     } catch (e) {
       print("❌ Erreur lors de la mise à jour des favoris : $e");
     }
   }
 
-  /// 📌 Récupérer la liste des utilisateurs
   Future<void> _fetchUsers() async {
     if (currentUserEmail == null) return;
 
     try {
-      print("🔹 Chargement des utilisateurs...");
       final fetchedUsers = await supabaseService.getAllUsers();
-
       if (mounted) {
         setState(() {
           users = fetchedUsers;
         });
-      }
-
-      if (users.isEmpty) {
-        print("⚠️ Aucun utilisateur trouvé !");
       }
     } catch (e) {
       print("❌ Erreur lors du chargement des utilisateurs : $e");
     }
   }
 
-  /// 📌 Afficher les détails d'un utilisateur
   void _showUserDetails(BuildContext context, Map<String, dynamic> user) {
     showModalBottomSheet(
       context: context,
@@ -216,10 +170,27 @@ class _UserListPageState extends State<UserListPage> {
 
   @override
   Widget build(BuildContext context) {
+    List<Map<String, dynamic>> displayedUsers = showFavoritesOnly
+        ? users.where((user) => favoriteUsers[user['email']] == true).toList()
+        : users;
+
     return Scaffold(
       appBar: AppBar(
         title: Text("Liste des Utilisateurs"),
         backgroundColor: Colors.red,
+        actions: [
+          IconButton(
+            icon: Icon(
+              showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                showFavoritesOnly = !showFavoritesOnly;
+              });
+            },
+          ),
+        ],
       ),
       body: currentUserEmail == null
           ? Center(
@@ -243,16 +214,14 @@ class _UserListPageState extends State<UserListPage> {
       )
           : RefreshIndicator(
         onRefresh: () async {
-          print("🔄 Rafraîchissement en cours...");
           await _initializeData();
-          print("✅ Rafraîchissement terminé !");
         },
-        child: users.isEmpty
+        child: displayedUsers.isEmpty
             ? Center(child: CircularProgressIndicator())
             : ListView.builder(
-          itemCount: users.length,
+          itemCount: displayedUsers.length,
           itemBuilder: (context, index) {
-            final user = users[index];
+            final user = displayedUsers[index];
             final isFavorite = favoriteUsers.containsKey(user['email']) &&
                 favoriteUsers[user['email']] == true;
 
@@ -267,14 +236,10 @@ class _UserListPageState extends State<UserListPage> {
               subtitle: Text(user['email'] ?? 'Email inconnu'),
               trailing: GestureDetector(
                 onTap: () => _toggleFavorite(user['email']),
-                child: AnimatedContainer(
-                  duration: Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  child: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: isFavorite ? Colors.red : Colors.grey,
-                    size: 30,
-                  ),
+                child: Icon(
+                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color: isFavorite ? Colors.red : Colors.grey,
+                  size: 30,
                 ),
               ),
               onTap: () => _showUserDetails(context, user),
