@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:max_ton_pote_2/services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserListPage extends StatefulWidget {
   @override
@@ -7,6 +8,8 @@ class UserListPage extends StatefulWidget {
 }
 
 class _UserListPageState extends State<UserListPage> {
+  final SupabaseClient supabase = Supabase.instance.client; // ✅ Déclaration ici
+
   String? currentUserEmail;
   Map<String, bool> favoriteUsers = {};
   List<Map<String, dynamic>> users = [];
@@ -15,13 +18,31 @@ class _UserListPageState extends State<UserListPage> {
   @override
   void initState() {
     super.initState();
-    _initializeData(); // 🔥 Chargement initial
+    _initializeData();
+
+    // 🔥 Ajout d'un écouteur pour détecter les changements d'authentification
+    supabase.auth.onAuthStateChange.listen((event) async {
+      if (event.session?.user != null) {
+        print("✅ Changement détecté : Utilisateur connecté !");
+        await _initializeData(); // 🔥 Recharge immédiatement les données
+      } else {
+        print("❌ Changement détecté : Utilisateur déconnecté !");
+        setState(() {
+          currentUserEmail = null;
+          users.clear();
+          favoriteUsers.clear();
+        });
+      }
+    });
   }
 
   /// 📌 Fonction qui charge l'utilisateur et ses favoris
   Future<void> _initializeData() async {
     await _getCurrentUserEmail();
-    await _fetchUsers(); // 🔥 Charge les utilisateurs et les favoris
+    if (currentUserEmail != null) {
+      await _fetchUsers(); // 🔥 Charge les utilisateurs après connexion
+      await _fetchFavoriteUsers();
+    }
   }
 
   /// 📌 Récupérer l'email de l'utilisateur connecté
@@ -32,9 +53,10 @@ class _UserListPageState extends State<UserListPage> {
         setState(() {
           currentUserEmail = response['email'];
         });
-        print("✅ Utilisateur connecté : $currentUserEmail");
+        print("✅ Utilisateur connecté détecté automatiquement : $currentUserEmail");
 
-        // Charger les favoris après récupération de l'email
+        // 🔥 Charger les utilisateurs et favoris immédiatement
+        await _fetchUsers();
         await _fetchFavoriteUsers();
       } else {
         print("❌ Aucun utilisateur connecté !");
@@ -116,8 +138,10 @@ class _UserListPageState extends State<UserListPage> {
     }
   }
 
-  /// 📌 Récupérer tous les utilisateurs et rafraîchir les favoris
+  /// 📌 Récupérer la liste des utilisateurs
   Future<void> _fetchUsers() async {
+    if (currentUserEmail == null) return;
+
     try {
       print("🔹 Chargement des utilisateurs...");
       final fetchedUsers = await supabaseService.getAllUsers();
@@ -131,9 +155,6 @@ class _UserListPageState extends State<UserListPage> {
       if (users.isEmpty) {
         print("⚠️ Aucun utilisateur trouvé !");
       }
-
-      // 🔥 Toujours mettre à jour les favoris après avoir récupéré les utilisateurs
-      await _fetchFavoriteUsers();
     } catch (e) {
       print("❌ Erreur lors du chargement des utilisateurs : $e");
     }
@@ -190,16 +211,32 @@ class _UserListPageState extends State<UserListPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text("Liste des Utilisateurs"),
-        backgroundColor: Colors.red, // 🔥 Ajout de la couleur rouge à l'AppBar
+        backgroundColor: Colors.red,
       ),
-      body: RefreshIndicator(
+      body: currentUserEmail == null
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 50, color: Colors.red),
+            SizedBox(height: 16),
+            Text(
+              "Vous n'êtes pas connecté",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Text(
+              "Connectez-vous avec votre compte Google",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      )
+          : RefreshIndicator(
         onRefresh: () async {
           print("🔄 Rafraîchissement en cours...");
-
-          await _getCurrentUserEmail(); // 🔥 Récupère d'abord le bon utilisateur
-          await _fetchUsers();
-          await _fetchFavoriteUsers();
-
+          await _initializeData();
           print("✅ Rafraîchissement terminé !");
         },
         child: users.isEmpty
@@ -208,11 +245,13 @@ class _UserListPageState extends State<UserListPage> {
           itemCount: users.length,
           itemBuilder: (context, index) {
             final user = users[index];
-            final isFavorite = favoriteUsers.containsKey(user['email']) && favoriteUsers[user['email']] == true;
+            final isFavorite = favoriteUsers.containsKey(user['email']) &&
+                favoriteUsers[user['email']] == true;
 
             return ListTile(
               leading: CircleAvatar(
-                backgroundImage: user['avatar_url'] != null && user['avatar_url'].isNotEmpty
+                backgroundImage: user['avatar_url'] != null &&
+                    user['avatar_url'].isNotEmpty
                     ? NetworkImage(user['avatar_url'])
                     : AssetImage("assets/default_avatar.png") as ImageProvider,
               ),

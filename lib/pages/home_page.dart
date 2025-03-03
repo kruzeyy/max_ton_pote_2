@@ -94,8 +94,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _pages = [
     UserListPage(), // 🔥 Correction ici
     const ProfileScreen(),
-    FavoritesScreen(favorites: [], toggleFavorite: (user) {}), // 🔥 Ajout des bons arguments
-    const MapScreen(),
+    FavoritesScreen(
+      favorites: [], // Passe une liste vide par défaut
+      toggleFavorite: (user) {}, // Ajoute la fonction toggleFavorite
+    ),    const MapScreen(),
   ];
 
   @override
