@@ -4,7 +4,6 @@ import 'package:max_ton_pote_2/pages/profile_page.dart';
 import 'package:max_ton_pote_2/pages/user_list_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'favorites_page.dart';
 import 'map_page.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,7 +15,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> users = [];
-  List<Map<String, dynamic>> _favorites = [];
   int _selectedIndex = 0;
   String _username = "";
   int _age = 18;
@@ -54,50 +52,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     print("✅ Utilisateurs chargés depuis la base !");
-    _loadFavorites(); // 🔥 Charger les favoris après avoir récupéré les utilisateurs
   }
 
-  /// ✅ Charger les favoris depuis `SharedPreferences`
-  Future<void> _loadFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String>? favs = prefs.getStringList('favorites');
-
-    if (favs != null) {
-      setState(() {
-        _favorites = users.where((user) => favs.contains(user['name'])).toList();
-      });
-    }
-  }
-
-  /// ✅ Sauvegarder les favoris
-  Future<void> _saveFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      'favorites',
-      _favorites.map((e) => e['name'] as String).toList(),
-    );
-  }
-
-  /// ✅ Ajouter ou retirer des favoris
-  void _toggleFavorite(Map<String, dynamic> user) {
-    setState(() {
-      if (_favorites.contains(user)) {
-        _favorites.remove(user);
-      } else {
-        _favorites.add(user);
-      }
-      _saveFavorites();
-    });
-  }
-
-  /// ✅ Liste des pages à afficher
+  /// ✅ Liste des pages à afficher (SUPPRESSION DES FAVORIS)
   final List<Widget> _pages = [
-    UserListPage(), // 🔥 Correction ici
+    UserListPage(),
     const ProfileScreen(),
-    FavoritesScreen(
-      favorites: [], // Passe une liste vide par défaut
-      toggleFavorite: (user) {}, // Ajoute la fonction toggleFavorite
-    ),    const MapScreen(),
+    const MapScreen(), // ✅ Map passe en index 2
   ];
 
   @override
@@ -118,8 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
         items: const [
           Icon(Icons.people, size: 30, color: Colors.white),
           Icon(Icons.person, size: 30, color: Colors.white),
-          Icon(Icons.favorite, size: 30, color: Colors.white),
-          Icon(Icons.map, size: 30, color: Colors.white),
+          Icon(Icons.map, size: 30, color: Colors.white), // ✅ Map est maintenant l'index 2
         ],
         onTap: (index) {
           setState(() {
