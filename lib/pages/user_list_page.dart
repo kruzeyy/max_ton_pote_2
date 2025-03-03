@@ -22,11 +22,19 @@ class _UserListPageState extends State<UserListPage> {
 
     // 🔥 Ajout d'un écouteur pour détecter les changements d'authentification
     supabase.auth.onAuthStateChange.listen((event) async {
-      if (event.session?.user != null) {
-        print("✅ Changement détecté : Utilisateur connecté !");
-        await _initializeData(); // 🔥 Recharge immédiatement les données
+      final session = event.session;
+      if (session?.user != null) {
+        print("✅ Nouveau compte détecté ou connexion réussie !");
+
+        // Met à jour l'email de l'utilisateur et recharge les données
+        setState(() {
+          currentUserEmail = session!.user!.email;
+        });
+
+        // 🔥 Charge la liste des utilisateurs après inscription/connexion
+        await _initializeData();
       } else {
-        print("❌ Changement détecté : Utilisateur déconnecté !");
+        print("❌ Déconnexion détectée !");
         setState(() {
           currentUserEmail = null;
           users.clear();
