@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:max_ton_pote_2/pages/page_chat.dart';
 import 'package:max_ton_pote_2/services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -15,6 +16,22 @@ class _UserListPageState extends State<UserListPage> {
   List<Map<String, dynamic>> users = [];
   bool showFavoritesOnly = false; // ✅ Nouvel état pour basculer entre tous les users et les favoris
   final SupabaseService supabaseService = SupabaseService();
+
+  void _navigateToChatScreen(BuildContext context, String targetUserEmail) {
+    if (currentUserEmail == null) return; // Vérifier si l'utilisateur est connecté
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          currentUserEmail: currentUserEmail!,
+          targetUserEmail: targetUserEmail,
+        ),
+      ),
+    );
+  }
+
+
 
   @override
   void initState() {
@@ -161,6 +178,19 @@ class _UserListPageState extends State<UserListPage> {
                 style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context); // Ferme le modal
+                  _navigateToChatScreen(context, user['email'] as String);
+                },
+                icon: Icon(Icons.message, color: Colors.white),
+                label: Text("Envoyer un message"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  textStyle: TextStyle(fontSize: 18),
+                ),
+              ),
             ],
           ),
         );
