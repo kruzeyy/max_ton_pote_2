@@ -46,7 +46,7 @@ Future<geo.Position?> getUserLocation() async {
 }
 
 double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-  const double R = 6371; // Rayon de la Terre en km
+  const double R = 6371;
   double dLat = (lat2 - lat1) * pi / 180;
   double dLon = (lon2 - lon1) * pi / 180;
 
@@ -55,14 +55,14 @@ double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
           sin(dLon / 2) * sin(dLon / 2);
   double c = 2 * atan2(sqrt(a), sqrt(1 - a));
 
-  return R * c; // Distance en km
+  return R * c;
 }
 
 class _MapScreenState extends State<MapScreen> {
   geo.Position? _currentPosition;
   late mapbox.MapWidget _mapWidget;
   late mapbox.PointAnnotationManager _annotationManager;
-  late mapbox.MapboxMap _mapboxMap; // ✅ Stocker la référence de la carte
+  late mapbox.MapboxMap _mapboxMap;
 
   @override
   void initState() {
@@ -70,7 +70,6 @@ class _MapScreenState extends State<MapScreen> {
     _getCurrentLocation();
   }
 
-  /// ✅ Récupère la position actuelle de l'utilisateur
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
     geo.LocationPermission permission;
@@ -99,11 +98,9 @@ class _MapScreenState extends State<MapScreen> {
       _currentPosition = position;
     });
 
-    _addUserLocationMarker(position); // 🔥 Ajoute un marqueur à la position actuelle
+    _addUserLocationMarker(position);
   }
 
-  /// ✅ Ajoute un marqueur sur la position actuelle de l'utilisateur
-  /// ✅ Ajoute un marqueur sur la position actuelle de l'utilisateur
   Future<void> _addUserLocationMarker(geo.Position position) async {
     if (!mounted || _annotationManager == null) {
       print("⚠️ _annotationManager n'est pas encore prêt !");
@@ -124,7 +121,7 @@ class _MapScreenState extends State<MapScreen> {
     print("✅ Marqueur ajouté à la position : ${position.latitude}, ${position.longitude}");
   }
 
-  /// ✅ Centre la carte sur la position actuelle
+
   void _centerToUserLocation() {
     if (_currentPosition != null && _mapboxMap != null) {
       _mapboxMap.setCamera(mapbox.CameraOptions(
@@ -165,14 +162,14 @@ class _MapScreenState extends State<MapScreen> {
           pitch: 0,
         ),
           onMapCreated: (mapbox.MapboxMap mapboxMap) async {
-            _mapboxMap = mapboxMap; // ✅ Stocker la référence de la carte
+            _mapboxMap = mapboxMap;
             _annotationManager = await mapboxMap.annotations.createPointAnnotationManager();
 
             if (_currentPosition != null) {
-              _addUserLocationMarker(_currentPosition!); // 🔥 Ajout du marqueur uniquement si position dispo
+              _addUserLocationMarker(_currentPosition!);
             }
 
-            // ✅ Active le suivi de localisation avec un effet de pulsation en bleu
+
             mapboxMap.location.updateSettings(mapbox.LocationComponentSettings(
               enabled: true,
               pulsingEnabled: true,
@@ -185,7 +182,7 @@ class _MapScreenState extends State<MapScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           if (_currentPosition != null && _mapboxMap != null) {
-            // 🔥 Animation fluide vers la position actuelle
+
             _mapboxMap.easeTo(
               mapbox.CameraOptions(
                 center: mapbox.Point(
@@ -194,12 +191,12 @@ class _MapScreenState extends State<MapScreen> {
                     _currentPosition!.latitude,
                   ),
                 ),
-                zoom: 17.0, // ✅ Zoom légèrement plus proche pour un meilleur effet
-                bearing: Random().nextDouble() * 360, // ✅ Ajoute une légère rotation aléatoire
-                pitch: 30, // ✅ Incline la vue pour un effet plus immersif
+                zoom: 17.0,
+                bearing: Random().nextDouble() * 360,
+                pitch: 30,
               ),
               mapbox.MapAnimationOptions(
-                duration: 1500, // ✅ Durée de l'animation en millisecondes
+                duration: 1500,
               ),
             );
           }

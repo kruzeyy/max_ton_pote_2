@@ -31,7 +31,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      // 🔍 Récupérer l'utilisateur courant et sa liste de favoris
       final response = await supabase
           .from('User')
           .select('favorites')
@@ -56,7 +55,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         return;
       }
 
-      // 🔄 Récupérer les données des utilisateurs favoris
       final usersResponse = await supabase
           .from('User')
           .select('name, email, age, city, avatar_url')

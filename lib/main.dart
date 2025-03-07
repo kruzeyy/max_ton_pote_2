@@ -6,10 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Charger les variables d'environnement depuis le fichier .env
   await dotenv.load();
 
-  // Initialisation de Supabase avec les valeurs du .env
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL'] ?? '',
     anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
@@ -25,7 +23,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: LoginScreen(), // 🔥 Affiche d'abord la page de connexion
+      home: LoginScreen(),
     );
   }
 }

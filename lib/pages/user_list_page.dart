@@ -14,11 +14,11 @@ class _UserListPageState extends State<UserListPage> {
   String? currentUserEmail;
   Map<String, bool> favoriteUsers = {};
   List<Map<String, dynamic>> users = [];
-  bool showFavoritesOnly = false; // ✅ Nouvel état pour basculer entre tous les users et les favoris
+  bool showFavoritesOnly = false;
   final SupabaseService supabaseService = SupabaseService();
 
   void _navigateToChatScreen(BuildContext context, String targetUserEmail) {
-    if (currentUserEmail == null) return; // Vérifier si l'utilisateur est connecté
+    if (currentUserEmail == null) return;
 
     Navigator.push(
       context,
@@ -180,7 +180,7 @@ class _UserListPageState extends State<UserListPage> {
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pop(context); // Ferme le modal
+                  Navigator.pop(context);
                   _navigateToChatScreen(context, user['email'] as String);
                 },
                 icon: Icon(Icons.message, color: Colors.white),

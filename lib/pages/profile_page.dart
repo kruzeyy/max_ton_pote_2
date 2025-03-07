@@ -25,7 +25,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _checkUser();
 
-    // 🔥 Ajoute un listener pour écouter les changements d'état d'authentification
     supabase.auth.onAuthStateChange.listen((event) {
       setState(() {
         _user = supabase.auth.currentUser;
@@ -33,7 +32,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  /// ✅ Vérifie si un utilisateur est connecté
   Future<void> _checkUser() async {
     print("🔹 Vérification de l'état de l'utilisateur...");
 
@@ -52,7 +50,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// ✅ Connexion avec Google et vérification dans Supabase
   Future<void> _signInWithGoogle() async {
     try {
       print("🔹 Début de la connexion Google...");
@@ -73,7 +70,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         throw 'Google ID Token ou Access Token non trouvé.';
       }
 
-      // 🔹 Connexion avec Supabase
       final response = await supabase.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
@@ -85,7 +81,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       print("✅ Utilisateur connecté avec Google : ${user.email}");
 
-      // 🔹 Vérification si l'utilisateur est déjà enregistré dans la BDD
       final userData = await supabase.from('User').select().eq('id', user.id).maybeSingle();
 
       if (userData == null) {
@@ -94,7 +89,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => CompleteProfileScreen(
-              userId: user.id, // Ajout du `userId` pour éviter l'erreur
+              userId: user.id,
               email: user.email ?? "",
             ),
           ),
@@ -110,7 +105,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// ✅ Déconnexion
   Future<void> _signOut() async {
     try {
       print("🔹 Déconnexion en cours...");
@@ -179,7 +173,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-/// ✅ Génère des utilisateurs fictifs pour les tests
 Future<List<Map<String, dynamic>>> generateUsers() async {
   final random = Random();
   final randomNames = RandomNames(Zone.us);
@@ -201,8 +194,8 @@ Future<List<Map<String, dynamic>>> generateUsers() async {
 
     return {
       'name': randomNames.fullName(),
-      'age': random.nextInt(30) + 18, // Âge entre 18 et 47 ans
-      'distance': distance, // 🔥 Distance réelle
+      'age': random.nextInt(30) + 18,
+      'distance': distance,
       'city': city,
       'description': "Utilisateur sympathique qui aime discuter.",
       'imageURL': "https://picsum.photos/200?random=$index",
